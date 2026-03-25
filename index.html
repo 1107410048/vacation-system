@@ -2027,6 +2027,24 @@ function refreshElSelects(){
 function bootUI(){
   renderDeptOptions();renderDeptList();renderEmployees();updateStats();
 }
+
+// ══ EXPOSE TO WINDOW (required for type="module") ══
+Object.assign(window,{
+  switchTab,setMode,
+  addDept,removeDept,addEmployee,removeEmployee,clearAllEmployees,
+  buildPeriodSetup,setAllDateType,cycleDateType,applyDefaults,addPeriod,removePeriod,
+  refreshAppSelects,onAppPeriodChange,addApplication,removeApplication,renderApplications,
+  onLotteryPeriodChange,toggleManualMode,runAllLottery,proceedNextSlot,
+  onLotteryShiftChange,onLotteryDayChange,startSingleLottery,
+  drawNext,autoDrawAll,saveCurrentResult,saveAllResults,resetLottery,
+  saveQuota,reviewLeave,deleteLeave,
+  initSchedule,setSchView,renderSchedule,adminMakeup,confirmAdminMakeup,cancelAdminMakeup,
+  renderHistory,clearHistory,closeModal,
+  onSelfPeriodChange,selfSubmit,selfRemove,selfSubmitExtraLeave,selfCancelLeave,
+  selfApplyMakeup,selfCancelMakeup,
+  refreshElSelects,
+});
+
 initData();
 </script>
 </body>
