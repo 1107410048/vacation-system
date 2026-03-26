@@ -297,7 +297,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div>
   <div class="header-mode">
     <button class="mode-btn" id="btn-change-pin" onclick="showChangePinModal()" style="display:none;margin-right:8px;font-size:.62rem;">🔑 修改 PIN</button>
-    <button class="mode-btn" id="btn-simulate-emp" onclick="showSimulatePanel()" style="display:none;background:rgba(232,122,74,.12);border-color:rgba(232,122,74,.4);color:var(--accent2);">👁️ 模擬員工</button>
+    <button class="mode-btn" id="btn-simulate-emp" onclick="enterSimulateView()" style="display:none;background:rgba(232,122,74,.12);border-color:rgba(232,122,74,.4);color:var(--accent2);">👁️ 模擬員工</button>
     <button class="mode-btn" id="btn-back-to-admin" onclick="backToAdmin()" style="display:none;background:rgba(74,232,122,.12);border-color:rgba(74,232,122,.4);color:var(--green);">↩ 返回管理員</button>
     <button class="mode-btn" id="btn-export-data" onclick="exportData()" style="display:none;font-size:.62rem;">💾 匯出資料</button>
     <button class="mode-btn" id="btn-copy-data" onclick="copyDataToClipboard()" style="display:none;font-size:.62rem;">📋 複製資料</button>
@@ -603,6 +603,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
       <div class="card">
+        <div class="section-title">各班別每日出勤人數上限設定</div>
+        <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">超過此上限（排假＋額外請假）的申請仍可核准，但會顯示「當日超休，須出示證明」警示。留空表示不限制。</div>
+        <div id="daily-limit-table" style="overflow-x:auto;"></div>
+        <button class="btn btn-primary" style="margin-top:12px;font-size:.7rem;padding:7px 16px;" onclick="saveDailyLimits()">儲存上限設定</button>
+      </div>
+      <div class="card">
         <div class="flex-between">
           <div class="section-title" style="margin-bottom:0">請假申請列表</div>
           <div style="display:flex;gap:7px;flex-wrap:wrap;">
@@ -626,23 +632,23 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="card" style="padding:16px 18px;">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <div class="field" style="margin-bottom:0;"><label>選擇假期</label>
-            <select id="sch-period" onchange="renderSchedule()" style="min-width:180px;"></select>
+            <select id="sch-period" onchange="onSchPeriodChange()" style="min-width:180px;"></select>
           </div>
-          <div class="field" style="margin-bottom:0;"><label>選擇班別</label>
-            <select id="sch-shift" onchange="renderSchedule()" style="min-width:120px;"><option value="">全部班別</option></select>
-          </div>
-          <div class="field" style="margin-bottom:0;"><label>性別</label>
-            <select id="sch-gender" onchange="renderSchedule()" style="min-width:100px;">
-              <option value="">全部</option>
-              <option value="male">男</option>
-              <option value="female">女</option>
-            </select>
-          </div>
-          <div class="field" style="margin-bottom:0;"><label>店別</label>
+          <div class="field" id="sch-store-field" style="margin-bottom:0;display:none;"><label>店別</label>
             <select id="sch-store" onchange="renderSchedule()" style="min-width:100px;">
               <option value="">全部</option>
               <option value="竹北店">竹北店</option>
               <option value="關新店">關新店</option>
+            </select>
+          </div>
+          <div class="field" id="sch-shift-field" style="margin-bottom:0;display:none;"><label>選擇班別</label>
+            <select id="sch-shift" onchange="renderSchedule()" style="min-width:120px;"><option value="">全部班別</option></select>
+          </div>
+          <div class="field" id="sch-gender-field" style="margin-bottom:0;display:none;"><label>性別</label>
+            <select id="sch-gender" onchange="renderSchedule()" style="min-width:100px;">
+              <option value="">全部</option>
+              <option value="male">男</option>
+              <option value="female">女</option>
             </select>
           </div>
           <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
@@ -719,12 +725,17 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <h2>📝 員工排假申請</h2>
       <div class="sub">請選擇假期與姓名，勾選您想申請的日期後送出</div>
 
+      <!-- 模擬模式：員工選擇器 -->
+      <div id="simulate-emp-picker" style="display:none;background:rgba(232,122,74,.08);border:1px solid rgba(232,122,74,.3);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;">
+        <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--accent2);letter-spacing:.1em;margin-bottom:8px;">👁️ 模擬員工選擇</div>
+        <select id="simulate-emp-select" onchange="onSimulateEmpChange()" style="width:100%;"><option value="">-- 請選擇要模擬的員工 --</option></select>
+      </div>
+
       <div class="field"><label>選擇假期</label>
         <select id="self-period" onchange="onSelfPeriodChange()"><option value="">-- 選擇假期 --</option></select>
       </div>
-      <div class="field"><label>您的姓名</label>
-        <select id="self-emp"><option value="">-- 先選假期 --</option></select>
-      </div>
+      <!-- self-emp 隱藏欄位，供 JS 內部使用 -->
+      <select id="self-emp" style="display:none;"><option value="">-- 先選假期 --</option></select>
 
       <div id="self-dates-section" style="display:none;">
         <div class="section-title">選擇申請日期</div>
@@ -776,22 +787,6 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <div id="simulate-banner" style="display:none;background:rgba(232,122,74,.15);border-bottom:2px solid rgba(232,122,74,.5);padding:8px 20px;text-align:center;font-family:'Space Mono',monospace;font-size:.7rem;color:var(--accent2);letter-spacing:.06em;">
   👁️ 管理員模擬模式：目前模擬 <span id="simulate-emp-name" style="font-weight:700;color:#fff;"></span> 的員工介面，可操作所有員工資料
 </div>
-<!-- 模擬員工選擇面板 -->
-<div id="simulate-panel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px;max-width:420px;width:90%;">
-    <h2 style="font-size:.96rem;margin-bottom:6px;">👁️ 模擬員工介面</h2>
-    <p style="color:var(--text-dim);font-size:.8rem;margin-bottom:16px;line-height:1.7;">選擇要模擬的員工，以該員工視角進入員工介面。管理員身份不受操作限制。</p>
-    <div class="field" style="margin-bottom:16px;">
-      <label>選擇員工</label>
-      <select id="simulate-emp-select" style="width:100%;"><option value="">-- 請選擇員工 --</option></select>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="startSimulate()">進入模擬</button>
-      <button class="btn btn-ghost" style="flex:1;" onclick="closeSimulatePanel()">取消</button>
-    </div>
-  </div>
-</div>
-
 <!-- 本地模式提示 -->
 <div id="local-mode-banner" style="display:none;background:rgba(232,200,74,.12);border-bottom:1px solid rgba(232,200,74,.3);padding:8px 20px;text-align:center;font-family:'Space Mono',monospace;font-size:.7rem;color:var(--accent);letter-spacing:.06em;">
   🖥️ 本地測試模式 — 資料僅存在此瀏覽器，不會同步至雲端
@@ -873,6 +868,8 @@ function migrateData(d){
   if(!Array.isArray(d.history)) d.history=[];
   if(!d.monthlyQuota) d.monthlyQuota=8;
   if(!Array.isArray(d.admins)) d.admins=[];
+  if(!d.dailyLimits) d.dailyLimits={};
+  d.employees.forEach(e=>{ if(!e.store) e.store='竹北店'; });
   return d;
 }
 
@@ -1131,49 +1128,44 @@ let _isSimulating = false;
 let _savedAdminRole = null;
 let _savedAdminUser = null;
 
-function showSimulatePanel(){
+function enterSimulateView(){
   if(_currentRole!=='superadmin')return;
+  _isSimulating=true;
+  _currentEmpId=null;
+  _savedAdminRole=_currentRole;
+  _savedAdminUser=_currentAdminUser;
+  document.getElementById('header-user-info').textContent='👁️ 模擬員工模式';
+  document.getElementById('btn-simulate-emp').style.display='none';
+  document.getElementById('btn-back-to-admin').style.display='inline-block';
+  document.getElementById('btn-change-pin').style.display='none';
+  document.getElementById('simulate-banner').style.display='block';
+  document.getElementById('simulate-emp-name').textContent='尚未選擇員工';
+  document.getElementById('admin-view').style.display='none';
+  document.getElementById('self-view').style.display='block';
+  // 填入員工選擇器
   const sel=document.getElementById('simulate-emp-select');
-  sel.innerHTML='<option value="">-- 請選擇員工 --</option>';
+  sel.innerHTML='<option value="">-- 請選擇要模擬的員工 --</option>';
   data.employees.forEach(e=>{
     const o=document.createElement('option');o.value=e.id;
     o.textContent=`${e.name}（${e.dept} / ${e.store||'竹北店'}）`;
     sel.appendChild(o);
   });
-  document.getElementById('simulate-panel').style.display='flex';
+  document.getElementById('simulate-emp-picker').style.display='block';
+  initSelfView();
 }
-function closeSimulatePanel(){
-  document.getElementById('simulate-panel').style.display='none';
-}
-function startSimulate(){
+function onSimulateEmpChange(){
   const eid=parseInt(document.getElementById('simulate-emp-select').value);
   const emp=data.employees.find(e=>e.id===eid);
-  if(!emp)return toast('請選擇員工',true);
-  closeSimulatePanel();
-  _isSimulating=true;
-  _savedAdminRole=_currentRole;
-  _savedAdminUser=_currentAdminUser;
+  if(!emp){_currentEmpId=null;initSelfView();return;}
   _currentEmpId=eid;
-  // 保留 superadmin role，讓安全驗證不擋
-  document.getElementById('main-header').style.display='flex';
   document.getElementById('header-user-info').textContent=`👁️ 模擬中：${emp.name}（${emp.dept}）`;
-  document.getElementById('btn-simulate-emp').style.display='none';
-  document.getElementById('btn-back-to-admin').style.display='inline-block';
-  document.getElementById('btn-change-pin').style.display='none';
-  document.getElementById('simulate-banner').style.display='block';
   document.getElementById('simulate-emp-name').textContent=`${emp.name}（${emp.dept}）`;
-  document.getElementById('admin-view').style.display='none';
-  document.getElementById('self-view').style.display='block';
   initSelfView();
   setTimeout(()=>{
     const pSel=document.getElementById('self-period');
     if(pSel&&pSel.options.length>1){pSel.selectedIndex=1;onSelfPeriodChange();}
-    setTimeout(()=>{
-      const eSel=document.getElementById('self-emp');
-      if(eSel){for(let i=0;i<eSel.options.length;i++){if(parseInt(eSel.options[i].value)===eid){eSel.selectedIndex=i;break;}}onSelfEmpChange();}
-    },100);
   },100);
-  toast(`✓ 現在模擬 ${emp.name} 的員工介面`);
+  toast(`✓ 切換為 ${emp.name} 的視角`);
 }
 function backToAdmin(){
   if(!_isSimulating)return;
@@ -1182,6 +1174,7 @@ function backToAdmin(){
   _currentRole=_savedAdminRole;
   _currentAdminUser=_savedAdminUser;
   document.getElementById('simulate-banner').style.display='none';
+  document.getElementById('simulate-emp-picker').style.display='none';
   document.getElementById('btn-back-to-admin').style.display='none';
   document.getElementById('btn-simulate-emp').style.display='inline-block';
   document.getElementById('header-user-info').textContent=`🔧 超級管理員${window._isLocalMode?'（本地測試）':''}`;
@@ -1797,15 +1790,6 @@ function initSelfView(){
   document.getElementById('self-emp').innerHTML='<option value="">-- 先選假期 --</option>';
   document.getElementById('self-dates-section').style.display='none';
   document.getElementById('self-my-apps').style.display='none';
-  // 員工登入 或 管理員模擬模式 → 顯示姓名標籤，不允許切換
-  if((_currentRole==='employee'||_isSimulating)&&_currentEmpId){
-    const emp=data.employees.find(e=>e.id===_currentEmpId);
-    if(emp){
-      document.getElementById('self-emp-field').style.display='none';
-      document.getElementById('self-emp-display').style.display='block';
-      document.getElementById('self-emp-name-label').textContent=`${emp.name}（${emp.dept}）`;
-    }
-  }
 }
 function onSelfPeriodChange(){
   const pid=parseInt(document.getElementById('self-period').value);
@@ -2286,7 +2270,10 @@ function renderExtraLeave(){
         ?`<button class="btn" style="padding:3px 9px;font-size:.6rem;background:var(--green);color:#111;" onclick="reviewLeave('${l.id}','approved')">核准</button>
            <button class="btn btn-danger" style="padding:3px 9px;font-size:.6rem;margin-left:4px;" onclick="reviewLeave('${l.id}','rejected')">拒絕</button>`
         :`<button class="btn btn-ghost" style="padding:3px 9px;font-size:.6rem;" onclick="deleteLeave('${l.id}')">刪除</button>`;
-      return `<tr><td>${l.empName}</td><td><span class="badge b-yellow">${l.shift}</span></td><td style="font-family:'Space Mono',monospace;font-size:.76rem;">${l.date}</td><td style="font-size:.8rem;">${l.reason||'—'}</td><td>${statusBadge}</td><td>${actions}</td></tr>`;
+      const overWarning=isOverDailyLimit(l.empId,l.date,l.status==='pending')
+        ?`<div style="font-size:.62rem;color:var(--red);font-family:'Space Mono',monospace;margin-top:3px;">⚠ 當日超休，須出示證明</div>`
+        :'';
+      return `<tr><td>${l.empName}</td><td><span class="badge b-yellow">${l.shift}</span></td><td style="font-family:'Space Mono',monospace;font-size:.76rem;">${l.date}${overWarning}</td><td style="font-size:.8rem;">${l.reason||'—'}</td><td>${statusBadge}</td><td>${actions}</td></tr>`;
     }).join('')+'</tbody></table>';
 }
 
@@ -2383,6 +2370,19 @@ function setSchView(v){
   renderSchedule();
 }
 
+function onSchPeriodChange(){
+  const pid=parseInt(document.getElementById('sch-period').value);
+  const show=pid?'block':'none';
+  document.getElementById('sch-store-field').style.display=show;
+  document.getElementById('sch-shift-field').style.display=show;
+  document.getElementById('sch-gender-field').style.display=show;
+  if(!pid){
+    document.getElementById('sch-store').value='';
+    document.getElementById('sch-shift').value='';
+    document.getElementById('sch-gender').value='';
+  }
+  renderSchedule();
+}
 function initSchedule(){
   // populate period select
   const ps=document.getElementById('sch-period');
@@ -2529,6 +2529,7 @@ function renderSchedule(){
   const pid=parseInt(document.getElementById('sch-period').value);
   const filterShift=document.getElementById('sch-shift').value;
   const filterGender=document.getElementById('sch-gender')?.value||'';
+  const filterStore=document.getElementById('sch-store')?.value||'';
   if(!pid){document.getElementById('sch-calendar-table').innerHTML='<div class="empty"><div class="empty-icon">📊</div>請先選擇假期</div>';document.getElementById('sch-shift-table').innerHTML='';return;}
   const period=data.periods.find(p=>p.id===pid);
   if(!period)return;
@@ -2538,6 +2539,7 @@ function renderSchedule(){
   const allEmps=data.employees.filter(e=>{
     if(!shifts.includes(e.dept)) return false;
     if(filterGender && (e.gender||'male')!==filterGender) return false;
+    if(filterStore && (e.store||'竹北店')!==filterStore) return false;
     return true;
   });
   const ON_LEAVE=['lottery','direct','extra'];
@@ -2926,6 +2928,105 @@ function importData(event){
 }
 
 // ══ INIT ══
+function _storeKey(store){
+  // 將店名轉為安全的英文 ID，避免中文轉底線後衝突
+  const map={'竹北店':'zhubei','關新店':'guanxin'};
+  return map[store]||store.replace(/[^a-zA-Z0-9]/g,'_');
+}
+function _getDayType(date){
+  // 判斷日期為平日或假日（依假期 dateTypes 設定，否則依星期）
+  const period=data.periods.find(p=>p.start<=date&&date<=p.end);
+  if(period&&period.dateTypes&&period.dateTypes[date]) return period.dateTypes[date];
+  return isWk(date)?'holiday':'weekday';
+}
+function renderDailyLimitTable(){
+  const el=document.getElementById('daily-limit-table');
+  if(!el)return;
+  const stores=['竹北店','關新店'];
+  const genders=[{v:'male',l:'男'},{v:'female',l:'女'}];
+  const dayTypes=[{v:'weekday',l:'平日'},{v:'holiday',l:'假日'}];
+  const limits=data.dailyLimits||{};
+  const thStyle='text-align:center;padding:7px 10px;min-width:80px;border-bottom:1px solid var(--border);font-size:.6rem;';
+  const tdStyle='padding:5px 8px;text-align:center;border-bottom:1px solid var(--border);';
+  let html=`<table style="font-size:.82rem;border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:7px 12px;white-space:nowrap;border-bottom:1px solid var(--border);" rowspan="2">店別</th>
+        ${genders.map(g=>`<th colspan="2" style="${thStyle}color:${g.v==='male'?'#7ab4f0':'#f07ab4'};">${g.l}</th>`).join('')}
+      </tr>
+      <tr>
+        ${genders.map(()=>dayTypes.map(dt=>`<th style="${thStyle}color:${dt.v==='holiday'?'var(--accent)':'var(--green)'};">${dt.l}</th>`).join('')).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${stores.map(store=>`<tr>
+        <td style="padding:7px 12px;white-space:nowrap;border-bottom:1px solid var(--border);"><span class="badge b-green">${store}</span></td>
+        ${genders.map(g=>dayTypes.map(dt=>{
+          const key=`${store}__${g.v}__${dt.v}`;
+          const val=limits[key]!==undefined?limits[key]:'';
+          const inputId='dl_'+_storeKey(store)+'__'+g.v+'__'+dt.v;
+          return `<td style="${tdStyle}">
+            <input type="number" min="0" id="${inputId}"
+              value="${val}" placeholder="不限"
+              style="width:64px;padding:4px;text-align:center;font-family:'Space Mono',monospace;font-size:.78rem;">
+          </td>`;
+        }).join('')).join('')}
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+  el.innerHTML=html;
+}
+function saveDailyLimits(){
+  if(!data.dailyLimits) data.dailyLimits={};
+  const stores=['竹北店','關新店'];
+  const genders=['male','female'];
+  const dayTypes=['weekday','holiday'];
+  stores.forEach(store=>{ genders.forEach(g=>{ dayTypes.forEach(dt=>{
+    const key=`${store}__${g}__${dt}`;
+    const inp=document.getElementById('dl_'+_storeKey(store)+'__'+g+'__'+dt);
+    if(!inp)return;
+    const v=parseInt(inp.value);
+    if(isNaN(v)||inp.value.trim()==='') delete data.dailyLimits[key];
+    else data.dailyLimits[key]=Math.max(0,v);
+  });});});
+  save();renderExtraLeave();renderDailyLimitTable();toast('✓ 每日上限已儲存');
+}
+function getDailyLeaveCount(store,gender,date){
+  const empIds=new Set(data.employees.filter(e=>(e.store||'竹北店')===store&&(e.gender||'male')===gender).map(e=>e.id));
+  let confirmed=0;
+  const periodForDate=data.periods.find(p=>p.start<=date&&date<=p.end);
+  if(periodForDate){
+    const statusMap=buildStatusMap(periodForDate);
+    data.employees.filter(e=>empIds.has(e.id)).forEach(e=>{
+      const st=(statusMap[e.id]||{})[date];
+      if(st==='lottery'||st==='direct') confirmed++;
+    });
+  }
+  const approvedEl=(data.extraLeaves||[]).filter(l=>{
+    const emp=data.employees.find(e=>e.id===l.empId);
+    return emp&&(emp.store||'竹北店')===store&&(emp.gender||'male')===gender&&l.date===date&&l.status==='approved';
+  }).length;
+  return confirmed+approvedEl;
+}
+function isOverDailyLimit(empId,date,includePending=false){
+  const limits=data.dailyLimits||{};
+  const emp=data.employees.find(e=>e.id===empId);
+  if(!emp)return false;
+  const store=emp.store||'竹北店';
+  const gender=emp.gender||'male';
+  const dayType=_getDayType(date);
+  const key=`${store}__${gender}__${dayType}`;
+  const lim=limits[key];
+  if(lim===undefined||lim<=0) return false;
+  let count=getDailyLeaveCount(store,gender,date);
+  if(includePending){
+    count+=(data.extraLeaves||[]).filter(l=>{
+      const e=data.employees.find(x=>x.id===l.empId);
+      return e&&(e.store||'竹北店')===store&&(e.gender||'male')===gender&&l.date===date&&l.status==='pending';
+    }).length;
+  }
+  return count>lim;
+}
 function refreshElSelects(){
   const fs=document.getElementById('el-filter-shift');
   if(fs){const c=fs.value;fs.innerHTML='<option value="">全部班別</option>';data.departments.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d+'';fs.appendChild(o);});if(c)fs.value=c;}
@@ -2933,6 +3034,7 @@ function refreshElSelects(){
   const qd=document.getElementById('quota-display');if(qd)qd.textContent=quota;
   const mi=document.getElementById('monthly-quota');if(mi)mi.value=quota;
   const aqd=document.getElementById('app-quota-display');if(aqd)aqd.textContent=quota;
+  renderDailyLimitTable();
 }
 function bootUI(){
   if(USE_LOCAL){
