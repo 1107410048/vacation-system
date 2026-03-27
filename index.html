@@ -2528,18 +2528,36 @@ function exportScheduleExcel(){
   if(!period)return toast('請先選擇假期',true);
 
   const wb=XLSX.utils.book_new();
+  const filterShift=document.getElementById('sch-shift').value;
+  const filterGender=document.getElementById('sch-gender')?.value||'';
+  const filterStore=document.getElementById('sch-store')?.value||'';
+  const dates=getDates(period.start,period.end);
+  const shifts=filterShift?[filterShift]:data.departments;
+  const statusMap=buildStatusMap(period);
+  const ON_LEAVE=['lottery','direct','extra'];
+  const WD_CH=['日','一','二','三','四','五','六'];
+
+  // 年份轉民國
+  const toRocTitle=(start,name)=>{
+    const y=parseInt(start.slice(0,4))-1911;
+    const m=parseInt(start.slice(5,7));
+    return `${y}.${String(m).padStart(2,'0')}月 ${name}`;
+  };
+
+  // 狀態轉顯示符號
+  const stToSymbol=(st,extraLeaveApproved)=>{
+    if(st==='lottery'||st==='direct') return 'R';
+    if(st==='extra') return '請';
+    if(st==='loser') return '';
+    if(st==='pending') return '';
+    return '';
+  };
+
+  // 職稱顯示
+  const titleOf=(emp)=>emp.gender==='female'?'體師':'足師';
 
   if(_schView==='calendar'){
-    // ── 月曆視圖匯出 ──
-    const filterShift=document.getElementById('sch-shift').value;
-    const filterGender=document.getElementById('sch-gender')?.value||'';
-    const filterStore=document.getElementById('sch-store')?.value||'';
-    const dates=getDates(period.start,period.end);
-    const shifts=filterShift?[filterShift]:data.departments;
-    const statusMap=buildStatusMap(period);
-    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中'};
-    const ON_LEAVE=['lottery','direct','extra'];
-
+    // ── 月曆視圖：仿照圖片格式 ──
     const allEmps=data.employees.filter(e=>{
       if(!shifts.includes(e.dept)) return false;
       if(filterGender&&(e.gender||'male')!==filterGender) return false;
@@ -2547,83 +2565,167 @@ function exportScheduleExcel(){
       return true;
     });
 
-    // 標題列1：班別群組
-    const row1=['日期'];
-    shifts.forEach(shift=>{
-      const emps=allEmps.filter(e=>e.dept===shift);
-      if(!emps.length)return;
-      emps.forEach((emp,i)=>row1.push(i===0?shift:''));
+    // 計算各班員工
+    const shiftEmps=shifts.map(sh=>({shift:sh,emps:allEmps.filter(e=>e.dept===sh)})).filter(x=>x.emps.length);
+    const totalEmpCols=shiftEmps.reduce((s,x)=>s+x.emps.length,0);
+
+    // 統計欄：各班別（依原圖右側顯示早/中/晚等班別休假人數）
+    const statShifts=[...new Set(allEmps.map(e=>e.dept))];
+
+    const wsData=[];
+    const merges=[];
+
+    // Row 0：大標題
+    const titleRow=[toRocTitle(period.start,period.name)];
+    for(let i=0;i<totalEmpCols+statShifts.length;i++) titleRow.push('');
+    wsData.push(titleRow);
+    merges.push({s:{r:0,c:0},e:{r:0,c:totalEmpCols+statShifts.length}});
+
+    // Row 1：空白 + 班別群組標題 + 「當日休假人數」
+    const shiftHeaderRow=['',''];
+    shiftEmps.forEach(({shift,emps})=>{
+      shiftHeaderRow.push(shift);
+      for(let i=1;i<emps.length;i++) shiftHeaderRow.push('');
     });
-    // 標題列2：員工姓名
-    const row2=[''];
-    shifts.forEach(shift=>{
-      const emps=allEmps.filter(e=>e.dept===shift);
-      if(!emps.length)return;
-      emps.forEach(emp=>row2.push(emp.name));
+    shiftHeaderRow.push('當日休假人數');
+    for(let i=1;i<statShifts.length;i++) shiftHeaderRow.push('');
+    wsData.push(shiftHeaderRow);
+    // merge 班別群組
+    let col=2;
+    shiftEmps.forEach(({emps})=>{
+      if(emps.length>1) merges.push({s:{r:1,c:col},e:{r:1,c:col+emps.length-1}});
+      col+=emps.length;
     });
+    if(statShifts.length>1) merges.push({s:{r:1,c:col},e:{r:1,c:col+statShifts.length-1}});
+
+    // Row 2：空白 + 空白 + 職稱列 + 班別名稱
+    const titleRow2=['',''];
+    shiftEmps.forEach(({emps})=>{ emps.forEach(emp=>titleRow2.push(titleOf(emp))); });
+    statShifts.forEach(sh=>titleRow2.push(sh));
+    wsData.push(titleRow2);
+
+    // Row 3：「星期」+ 空白 + 員工姓名 + 空白
+    const nameRow=['星期',''];
+    shiftEmps.forEach(({emps})=>{ emps.forEach(emp=>nameRow.push(emp.name)); });
+    statShifts.forEach(()=>nameRow.push(''));
+    wsData.push(nameRow);
+
     // 資料列
-    const dataRows=dates.map(d=>{
+    dates.forEach((d,idx)=>{
       const dt=period.dateTypes||{};
       const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
-      const row=[fd(d)+(dayType==='holiday'?' [假日]':dayType==='closed'?' [不開放]':'')];
-      shifts.forEach(shift=>{
-        const emps=allEmps.filter(e=>e.dept===shift);
-        if(!emps.length)return;
+      const isHoliday=dayType==='holiday';
+      const dayNum=parseInt(d.slice(8));
+      const weekday=WD_CH[new Date(d+'T00:00:00').getDay()];
+      const row=[dayNum, weekday];
+      shiftEmps.forEach(({emps})=>{
         emps.forEach(emp=>{
           const st=(statusMap[emp.id]||{})[d];
-          row.push(st?STATUS_LABEL[st]:'');
+          // 額外請假顯示「請」
+          const hasExtraLeave=(data.extraLeaves||[]).some(l=>l.empId===emp.id&&l.date===d&&l.status==='approved');
+          let symbol='';
+          if(st==='lottery'||st==='direct') symbol='R';
+          else if(st==='extra'||hasExtraLeave) symbol='請';
+          row.push(symbol);
         });
       });
-      return row;
-    });
-    // 可休天數列
-    const totalRow=['可休天數'];
-    shifts.forEach(shift=>{
-      const emps=allEmps.filter(e=>e.dept===shift);
-      if(!emps.length)return;
-      emps.forEach(emp=>{
-        const empMap=statusMap[emp.id]||{};
-        totalRow.push(dates.filter(d=>ON_LEAVE.includes(empMap[d])).length);
+      // 統計：各班別當日休假人數
+      statShifts.forEach(sh=>{
+        const shEmps=allEmps.filter(e=>e.dept===sh);
+        const cnt=shEmps.filter(emp=>ON_LEAVE.includes((statusMap[emp.id]||{})[d])).length;
+        row.push(cnt||'');
       });
+      wsData.push(row);
     });
 
-    const wsData=[row1,row2,...dataRows,totalRow];
+    // 底部員工姓名重複列
+    const footNameRow=['',''];
+    shiftEmps.forEach(({emps})=>{ emps.forEach(emp=>footNameRow.push(emp.name)); });
+    statShifts.forEach(()=>footNameRow.push(''));
+    wsData.push(footNameRow);
+
+    // 底部職稱列
+    const footTitleRow=['',''];
+    shiftEmps.forEach(({emps})=>{ emps.forEach(emp=>footTitleRow.push(titleOf(emp))); });
+    statShifts.forEach(()=>footTitleRow.push(''));
+    wsData.push(footTitleRow);
+
     const ws=XLSX.utils.aoa_to_sheet(wsData);
-    // 欄寬
-    ws['!cols']=[{wch:14},...row2.slice(1).map(()=>({wch:10}))];
-    XLSX.utils.book_append_sheet(wb,ws,'月曆視圖');
+    ws['!merges']=merges;
+
+    // 欄寬設定
+    const cols=[{wch:5},{wch:4}];
+    shiftEmps.forEach(({emps})=>emps.forEach(()=>cols.push({wch:6})));
+    statShifts.forEach(()=>cols.push({wch:5}));
+    ws['!cols']=cols;
+
+    // 粉紅色假日背景（僅資料列）
+    const pinkFill={patternType:'solid',fgColor:{rgb:'F2CCCC'}};
+    const headerFill={patternType:'solid',fgColor:{rgb:'D9D9D9'}};
+    const centerAlign={horizontal:'center',vertical:'center'};
+
+    // 套用樣式需要 xlsx-style，這裡用基本設定
+    XLSX.utils.book_append_sheet(wb,ws,'假表');
 
   } else {
-    // ── 班別視圖匯出（每個班別一個 Sheet）──
-    const filterShift=document.getElementById('sch-shift').value;
-    const shifts=filterShift?[filterShift]:data.departments;
-    const dates=getDates(period.start,period.end);
-    const statusMap=buildStatusMap(period);
-    const ON_LEAVE=['lottery','direct','extra'];
-    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中'};
-
+    // ── 班別視圖：每個班別一個 Sheet，仿照格式 ──
+    shiftEmps_outer:
     shifts.forEach(shift=>{
-      const emps=data.employees.filter(e=>e.dept===shift);
-      const header=['日期','已/上限','休假人員','未中籤','申請中'];
-      const rows=dates.map(d=>{
-        const lim=getLim(period,shift,d);
-        if(lim===0)return null;
-        const confirmed=getConfirmedOnDate(period,shift,d);
-        const onLeave=emps.filter(emp=>ON_LEAVE.includes((statusMap[emp.id]||{})[d])).map(e=>e.name).join('、');
-        const losers=emps.filter(emp=>(statusMap[emp.id]||{})[d]==='loser').map(e=>e.name).join('、');
-        const pending=emps.filter(emp=>(statusMap[emp.id]||{})[d]==='pending').map(e=>e.name).join('、');
-        return [fd(d),`${confirmed}/${lim}`,onLeave,losers,pending];
-      }).filter(Boolean);
+      const emps=data.employees.filter(e=>{
+        if(e.dept!==shift) return false;
+        if(filterGender&&(e.gender||'male')!==filterGender) return false;
+        if(filterStore&&(e.store||'竹北店')!==filterStore) return false;
+        return true;
+      });
+      if(!emps.length) return;
 
-      const wsData=[header,...rows];
+      const wsData=[];
+      const merges=[];
+
+      // 標題
+      const title=toRocTitle(period.start,`${period.name} - ${shift}`);
+      wsData.push([title]);
+      merges.push({s:{r:0,c:0},e:{r:0,c:emps.length+2}});
+
+      // 職稱列
+      wsData.push(['','',  ...emps.map(e=>titleOf(e)),'當日休假']);
+      // 姓名列
+      wsData.push(['星期','', ...emps.map(e=>e.name),'人數']);
+
+      // 資料列
+      dates.forEach(d=>{
+        const dt=period.dateTypes||{};
+        const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
+        const dayNum=parseInt(d.slice(8));
+        const weekday=WD_CH[new Date(d+'T00:00:00').getDay()];
+        const lim=getLim(period,shift,d);
+        const row=[dayNum,weekday];
+        let cnt=0;
+        emps.forEach(emp=>{
+          const st=(statusMap[emp.id]||{})[d];
+          const hasExtra=(data.extraLeaves||[]).some(l=>l.empId===emp.id&&l.date===d&&l.status==='approved');
+          let symbol='';
+          if(lim===0){symbol='—';}
+          else if(st==='lottery'||st==='direct'){symbol='R';cnt++;}
+          else if(st==='extra'||hasExtra){symbol='請';cnt++;}
+          row.push(symbol);
+        });
+        row.push(cnt||'');
+        wsData.push(row);
+      });
+
+      // 底部姓名
+      wsData.push(['','', ...emps.map(e=>e.name),'']);
+      wsData.push(['','', ...emps.map(e=>titleOf(e)),'']);
+
       const ws=XLSX.utils.aoa_to_sheet(wsData);
-      ws['!cols']=[{wch:14},{wch:8},{wch:30},{wch:20},{wch:20}];
-      // Sheet 名稱不可超過31字元
+      ws['!merges']=merges;
+      const cols=[{wch:5},{wch:4},...emps.map(()=>({wch:6})),{wch:8}];
+      ws['!cols']=cols;
       XLSX.utils.book_append_sheet(wb,ws,shift.slice(0,31));
     });
   }
 
-  // 匯出檔案
   const ts=new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb,`假表_${period.name}_${ts}.xlsx`);
   toast('✓ Excel 已匯出');
