@@ -161,7 +161,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
 .cell-makeup{background:rgba(192,132,240,.2);color:#c084f0;}
 .cell-extra{background:rgba(232,122,74,.18);color:var(--accent2);}
 .cell-loser{background:rgba(232,74,74,.12);color:var(--red);}
-.cell-pending{background:rgba(255,255,255,.04);color:var(--text-dim);}
+.cell-pending{background:rgba(232,200,74,.1);color:var(--accent);border:1px solid rgba(232,200,74,.3);}
+.cell-el-pending{background:rgba(232,122,74,.12);color:var(--accent2);border:1px solid rgba(232,122,74,.3);}
 .cell-dot{font-size:.65rem;font-weight:700;}
 .sch-shift-group{margin-bottom:18px;}
 .sch-shift-group-title{font-family:'Space Mono',monospace;font-size:.72rem;font-weight:700;color:var(--accent);margin-bottom:8px;padding:5px 0;border-bottom:1px solid var(--border);}
@@ -196,6 +197,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
 .self-my-apps h3{font-family:'Space Mono',monospace;font-size:.62rem;letter-spacing:.12em;color:var(--accent);margin-bottom:10px;text-transform:uppercase;}
 
 @media(max-width:700px){.main{padding:13px;}.grid-2,.grid-3{grid-template-columns:1fr;}.tabs{padding:0 10px;}.header{padding:14px 16px;}.mode-btn span{display:none;}}
+/* 員工端分頁 */
+.self-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 16px;margin-bottom:0;}
+.self-tab{padding:10px 16px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.08em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.self-tab:hover{color:var(--text);}
+.self-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.self-panel{display:none;}.self-panel.active{display:block;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -613,6 +620,57 @@ tr:hover td{background:rgba(255,255,255,.018);}
           </div>
         </div>
       </div>
+      <!-- 長假管理 -->
+      <div class="card">
+        <div class="section-title">代為新增長假</div>
+        <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">長假期間每日自動計入，可設定是否佔用班別休假名額及個別員工排假天數。</div>
+        <div class="grid-2">
+          <div>
+            <div class="field"><label>店別</label>
+              <select id="ll-store" onchange="onLLStoreChange()" style="width:100%;">
+                <option value="">-- 選擇店別 --</option>
+                <option value="竹北店">竹北店</option>
+                <option value="關新店">關新店</option>
+              </select>
+            </div>
+            <div class="field" id="ll-emp-field" style="display:none;"><label>選擇員工</label>
+              <select id="ll-emp" onchange="onLLEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
+            </div>
+            <div class="field"><label>長假開始日期</label>
+              <input type="date" id="ll-start">
+            </div>
+            <div class="field"><label>長假結束日期</label>
+              <input type="date" id="ll-end">
+            </div>
+            <div class="field"><label>原因（選填）</label>
+              <input type="text" id="ll-reason" placeholder="例：產假、病假">
+            </div>
+          </div>
+          <div>
+            <div id="ll-emp-info" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.82rem;color:var(--text-dim);margin-bottom:12px;">請先選擇員工</div>
+            <div class="field">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.84rem;">
+                <input type="checkbox" id="ll-count-slot" style="width:auto;padding:0;accent-color:var(--accent);">
+                占用班別休假名額
+              </label>
+              <div style="font-family:'Space Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:4px;">勾選後長假期間每日計入班別休假人數上限</div>
+            </div>
+            <div class="field">
+              <label>該員工當月可排假天數上限</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="number" id="ll-custom-quota" min="0" placeholder="留空則使用全局設定" style="width:160px;">
+                <span style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);">全局：<span id="ll-global-quota">8</span> 天</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addLongLeave()">新增長假</button>
+      </div>
+      <!-- 長假列表 -->
+      <div class="card">
+        <div class="section-title">長假紀錄</div>
+        <div id="ll-list"></div>
+      </div>
       <div class="card">
         <div class="section-title">每日未出勤上限設定</div>
         <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">超過此上限（排假＋額外請假）的申請仍可核准，但會顯示「當日超休，須出示證明」警示。留空表示不限制。</div>
@@ -667,7 +725,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;"><span style="width:12px;height:12px;border-radius:2px;background:#7ab4f0;display:inline-block;"></span>休假（直接/補假）</span>
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;"><span style="width:12px;height:12px;border-radius:2px;background:#e87a4a;display:inline-block;"></span>額外請假</span>
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(232,74,74,.2);border:1px solid #e84a4a;display:inline-block;"></span>未中籤</span>
-            <span style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;"><span style="width:12px;height:12px;border-radius:2px;background:#2a2a2a;border:1px solid #444;display:inline-block;"></span>申請中</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(232,200,74,.1);border:1px solid rgba(232,200,74,.3);display:inline-block;"></span>申請中</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(232,122,74,.12);border:1px solid rgba(232,122,74,.3);display:inline-block;"></span>請假待審</span>
           </div>
         </div>
       </div>
@@ -677,7 +736,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <button class="btn btn-primary" id="sch-view-calendar" onclick="setSchView('calendar')" style="font-size:.68rem;padding:7px 14px;">📅 月曆視圖</button>
         <button class="btn btn-ghost" id="sch-view-shift" onclick="setSchView('shift')" style="font-size:.68rem;padding:7px 14px;">👥 班別視圖</button>
         <button class="btn btn-ghost" onclick="exportScheduleExcel()" style="font-size:.68rem;padding:7px 14px;margin-left:auto;border-color:rgba(74,232,122,.4);color:var(--green);">📊 匯出 Excel</button>
+        <button class="btn btn-primary" onclick="publishSchedule()" style="font-size:.68rem;padding:7px 14px;background:rgba(74,232,122,.85);color:#111;">📢 發布假表</button>
       </div>
+      <!-- 發布狀態提示 -->
+      <div id="publish-status" style="display:none;margin-bottom:10px;padding:8px 14px;background:rgba(74,232,122,.08);border:1px solid rgba(74,232,122,.25);border-radius:var(--radius);font-family:'Space Mono',monospace;font-size:.68rem;color:var(--green);"></div>
 
       <div id="sch-calendar-view">
         <div style="overflow-x:auto;"><div id="sch-calendar-table"></div></div>
@@ -739,6 +801,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
 <!-- ══ EMPLOYEE SELF-SERVICE VIEW ══ -->
 <div id="self-view" class="self-view">
+  <!-- 員工端分頁列 -->
+  <div class="self-tabs">
+    <button class="self-tab active" onclick="switchSelfTab('apply')">📝 排假申請</button>
+    <button class="self-tab" id="self-tab-schedule" onclick="switchSelfTab('schedule')" style="display:none;">📊 假表</button>
+  </div>
+
+  <!-- 排假申請分頁 -->
+  <div id="self-panel-apply" class="self-panel active">
   <div class="main" style="max-width:600px;">
     <div class="self-card" style="max-width:100%;margin:0;">
       <h2>📝 員工排假申請</h2>
@@ -779,8 +849,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <h2 style="font-size:1rem;margin-bottom:5px;">🏖️ 額外請假申請</h2>
         <div class="sub" style="margin-bottom:16px;">可申請排假以外的額外假期，送出後待管理員審核</div>
         <div id="self-el-quota-bar" style="margin-bottom:14px;"></div>
-        <div class="field"><label>請假日期</label><input type="date" id="self-el-date" style="max-width:200px;"></div>
-        <div class="field"><label>請假原因（選填）</label><input type="text" id="self-el-reason" placeholder="例：家庭事由"></div>
+        <div class="field"><label>請假日期（可複選）</label>
+          <div id="self-el-date-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:10px;max-height:220px;overflow-y:auto;padding:2px;"></div>
+        </div>
+        <div class="field"><label>請假原因（選填，套用至所有選取日期）</label><input type="text" id="self-el-reason" placeholder="例：家庭事由"></div>
         <button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="selfSubmitExtraLeave()">送出額外請假申請</button>
         <div id="self-el-history" class="self-my-apps" style="display:none;">
           <h3>我的額外請假紀錄</h3>
@@ -789,7 +861,19 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
   </div>
-</div>
+  </div><!-- /self-panel-apply -->
+
+  <!-- 假表分頁 -->
+  <div id="self-panel-schedule" class="self-panel">
+    <div class="main" style="max-width:1150px;">
+      <div class="section-title" style="margin-top:8px;">📊 已發布假表</div>
+      <div id="self-schedule-content">
+        <div class="empty"><div class="empty-icon">📊</div>目前尚無已發布的假表</div>
+      </div>
+    </div>
+  </div><!-- /self-panel-schedule -->
+
+</div><!-- /self-view -->
 
 <!-- Modal -->
 <div class="modal-overlay" id="modal">
@@ -833,7 +917,9 @@ const DEFAULT_DATA = {
   makeupLeaves:[],
   monthlyQuota:8,
   history:[],
-  admins:[] // [{id, username, password}]
+  admins:[], // [{id, username, password}]
+  longLeaves:[], // [{id, empId, empName, shift, startDate, endDate, reason, countAsSlot, customQuota, appliedAt}]
+  empQuotas:{} // {empId: quota} 個別員工排假天數上限
 };
 
 let data = JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -888,7 +974,11 @@ function migrateData(d){
   if(!d.monthlyQuota) d.monthlyQuota=8;
   if(!Array.isArray(d.admins)) d.admins=[];
   if(!d.dailyLimits) d.dailyLimits={};
+  if(!d.publishedSchedules) d.publishedSchedules=[];
+  if(!Array.isArray(d.longLeaves)) d.longLeaves=[];
+  if(!d.empQuotas) d.empQuotas={};
   d.employees.forEach(e=>{ if(!e.store) e.store='竹北店'; });
+  (d.periods||[]).forEach(p=>{ if(p.allowApplication===undefined) p.allowApplication=true; if(p.allowMakeup===undefined) p.allowMakeup=true; });
   return d;
 }
 
@@ -1034,6 +1124,8 @@ function _enterSelfView(eid){
   document.getElementById('admin-view').style.display='none';
   document.getElementById('self-view').style.display='block';
   initSelfView();
+  // 若有已發布假表則顯示假表分頁
+  updateSelfScheduleTab();
   setTimeout(()=>{
     const pSel=document.getElementById('self-period');
     if(pSel&&pSel.options.length>1){pSel.selectedIndex=1;onSelfPeriodChange();}
@@ -1184,6 +1276,7 @@ function enterSimulateView(){
   });
   document.getElementById('simulate-emp-picker').style.display='block';
   initSelfView();
+  updateSelfScheduleTab();
 }
 function onSimulateEmpChange(){
   const eid=parseInt(document.getElementById('simulate-emp-select').value);
@@ -1516,7 +1609,9 @@ function renderPeriods(){
             ${p.storeRestrict?`<span style="color:var(--accent);">僅限${p.storeRestrict}</span>`:''}
           </div>
         </div>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <button class="btn ${p.allowApplication!==false?'btn-primary':'btn-ghost'}" style="padding:4px 10px;font-size:.6rem;" onclick="togglePeriodSetting(${p.id},'allowApplication')">${p.allowApplication!==false?'✓ 排假開放':'✗ 排假關閉'}</button>
+          <button class="btn ${p.allowMakeup!==false?'btn-primary':'btn-ghost'}" style="padding:4px 10px;font-size:.6rem;" onclick="togglePeriodSetting(${p.id},'allowMakeup')">${p.allowMakeup!==false?'✓ 補假開放':'✗ 補假關閉'}</button>
           <button class="btn btn-ghost" style="padding:4px 10px;font-size:.6rem;" onclick="editPeriod(${p.id})">編輯</button>
           <button class="btn btn-danger" style="padding:4px 10px;font-size:.6rem;" onclick="removePeriod(${p.id})">刪除</button>
         </div>
@@ -1539,6 +1634,14 @@ function renderPeriods(){
   }).join('');
 }
 
+function togglePeriodSetting(id, key){
+  const p=data.periods.find(x=>x.id===id);
+  if(!p)return;
+  p[key]=p[key]===false?true:false;
+  save();renderPeriods();
+  const label=key==='allowApplication'?'排假':'補假';
+  toast(`✓「${p.name}」${label}已${p[key]?'開放':'關閉'}`);
+}
 let _editingPeriodId = null;
 
 function editPeriod(id){
@@ -1646,7 +1749,7 @@ function _addAppCore(periodId,empId,dates){
   const existing=data.applications.find(a=>a.periodId===periodId&&a.empId===empId);
   const alreadyCount=existing?existing.dates.length:0;
   const newDates=dates.filter(d=>!existing||!existing.dates.includes(d));
-  const quota=data.monthlyQuota||8;
+  const quota=getEmpQuota(empId);
   if(alreadyCount+newDates.length>quota)
     return{ok:false,msg:`超過每月排假上限（${quota} 天），目前已申請 ${alreadyCount} 天，最多還能申請 ${quota-alreadyCount} 天`};
   let added=0;
@@ -1835,6 +1938,11 @@ function renderApplications(){
 }
 
 // ══ EMPLOYEE SELF-SERVICE ══
+function updateSelfScheduleTab(){
+  const hasPub=(data.publishedSchedules||[]).length>0;
+  const el=document.getElementById('self-tab-schedule');
+  if(el) el.style.display=hasPub?'inline-block':'none';
+}
 function initSelfView(){
   const pSel=document.getElementById('self-period');
   pSel.innerHTML='<option value="">-- 選擇假期 --</option>';
@@ -1887,7 +1995,7 @@ function onSelfEmpChange(){
   const dates=getDates(p.start,p.end);
   const myApp=data.applications.find(a=>a.periodId===pid&&a.empId===eid);
   const myDates=myApp?myApp.dates:[];
-  const quota=data.monthlyQuota||8;
+  const quota=getEmpQuota(eid);
   const alreadyCount=myDates.length;
   const remaining=quota-alreadyCount;
   // quota bar
@@ -1957,6 +2065,8 @@ function selfSubmit(){
   if(!eid)return toast('請選擇您的姓名',true);
   const p=data.periods.find(x=>x.id===pid);
   if(!p)return;
+  // 檢查排假是否開放
+  if(p.allowApplication===false)return toast('此假期目前不開放排假申請',true);
   const allDates=getDates(p.start,p.end);
   // Checked dates
   const checked=allDates.filter(d=>{const cb=document.getElementById('sdate_'+d);return cb&&cb.checked;});
@@ -2444,6 +2554,44 @@ function renderSelfExtraLeave(eid){
   if(!emp)return;
   document.getElementById('self-el-section').style.display='block';
   document.getElementById('self-el-quota-bar').innerHTML='';
+  // 建立日期多選格（找出員工所在假期的所有日期）
+  const dateGrid=document.getElementById('self-el-date-grid');
+  if(dateGrid){
+    const pid=parseInt(document.getElementById('self-period').value);
+    const period=data.periods.find(p=>p.id===pid);
+    if(period){
+      const dates=getDates(period.start,period.end);
+      const WD_CH=['日','一','二','三','四','五','六'];
+      dateGrid.innerHTML=dates.map(d=>{
+        const already=(data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===d&&l.status!=='rejected');
+        const hasScheduled=hasScheduledLeave(eid,d);
+        const disabled=already||hasScheduled;
+        const dt=new Date(d+'T00:00:00');
+        const isWeekend=dt.getDay()===0||dt.getDay()===6;
+        const label=`${dt.getMonth()+1}/${dt.getDate()}(${WD_CH[dt.getDay()]})`;
+        // 三種狀態樣式
+        let bg,border,color,badge='';
+        if(already){
+          bg='rgba(74,232,122,.08)';border='rgba(74,232,122,.3)';color='var(--green)';
+          badge=`<span style="font-size:.56rem;margin-left:auto;background:rgba(74,232,122,.2);color:var(--green);padding:1px 4px;border-radius:3px;">已申請</span>`;
+        } else if(hasScheduled){
+          bg='rgba(122,180,240,.08)';border='rgba(122,180,240,.3)';color='#7ab4f0';
+          badge=`<span style="font-size:.56rem;margin-left:auto;background:rgba(122,180,240,.2);color:#7ab4f0;padding:1px 4px;border-radius:3px;">已排假</span>`;
+        } else {
+          bg='var(--surface2)';
+          border=isWeekend?'rgba(232,200,74,.4)':'var(--border)';
+          color=isWeekend?'var(--accent)':'var(--text)';
+        }
+        return `<label style="display:flex;align-items:center;gap:5px;padding:7px 9px;background:${bg};border:1px solid ${border};border-radius:var(--radius);cursor:${disabled?'not-allowed':'pointer'};font-size:.78rem;color:${color};user-select:none;">
+          <input type="checkbox" id="el_date_${d}" value="${d}" ${disabled?'disabled':''} style="width:auto;padding:0;accent-color:var(--accent);flex-shrink:0;">
+          <span>${label}</span>
+          ${badge}
+        </label>`;
+      }).join('');
+    } else {
+      dateGrid.innerHTML='<div style="font-size:.78rem;color:var(--text-dim);">請先選擇假期</div>';
+    }
+  }
   // history
   const myLeaves=(data.extraLeaves||[]).filter(l=>l.empId===eid).sort((a,b)=>b.appliedAt.localeCompare(a.appliedAt));
   const histEl=document.getElementById('self-el-history');
@@ -2463,21 +2611,26 @@ function renderSelfExtraLeave(eid){
 }
 function selfSubmitExtraLeave(){
   const eid=parseInt(document.getElementById('self-emp').value);
-  const date=document.getElementById('self-el-date').value;
   const reason=document.getElementById('self-el-reason').value.trim();
   if(!eid)return toast('請先選擇姓名',true);
-  if(!date)return toast('請選擇日期',true);
+  // 收集所有勾選日期
+  const checkedDates=[...document.querySelectorAll('#self-el-date-grid input[type=checkbox]:checked')].map(cb=>cb.value);
+  if(!checkedDates.length)return toast('請至少選擇一個日期',true);
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return;
-  if((data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected')) return toast('此日期已申請過',true);
-  if(hasScheduledLeave(eid,date)) return toast('當天已排假，無須請假',true);
   if(!data.extraLeaves) data.extraLeaves=[];
-  data.extraLeaves.push({id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,empId:eid,empName:emp.name,shift:emp.dept,date,reason,status:'pending',appliedAt:new Date().toLocaleString('zh-TW')});
+  let added=0, skipped=0;
+  checkedDates.forEach(date=>{
+    if((data.extraLeaves).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected')){skipped++;return;}
+    if(hasScheduledLeave(eid,date)){skipped++;return;}
+    data.extraLeaves.push({id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,empId:eid,empName:emp.name,shift:emp.dept,date,reason,status:'pending',appliedAt:new Date().toLocaleString('zh-TW')});
+    added++;
+  });
+  if(!added)return toast(skipped?'所選日期均已申請或已排假':'請選擇日期',true);
   save();
-  document.getElementById('self-el-date').value='';
   document.getElementById('self-el-reason').value='';
   renderSelfExtraLeave(eid);
-  toast('✓ 申請已送出，待管理員審核');
+  toast(`✓ 已送出 ${added} 天申請${skipped?`（${skipped} 天略過）`:''}，待管理員審核`);
 }
 function selfCancelLeave(id,eid){
   data.extraLeaves=(data.extraLeaves||[]).filter(x=>!(x.id===id&&x.status==='pending'));
@@ -2669,7 +2822,6 @@ function exportScheduleExcel(){
 
   } else {
     // ── 班別視圖：每個班別一個 Sheet，仿照格式 ──
-    shiftEmps_outer:
     shifts.forEach(shift=>{
       const emps=data.employees.filter(e=>{
         if(e.dept!==shift) return false;
@@ -2756,6 +2908,7 @@ function onSchPeriodChange(){
   document.getElementById('sch-gender-field').style.display=showGender?'block':'none';
   if(!showGender) document.getElementById('sch-gender').value=period.genderRestrict||'';
   renderSchedule();
+  updatePublishStatus();
 }
 function initSchedule(){
   // populate period select
@@ -2788,6 +2941,8 @@ function getConfirmedOnDate(period, shift, date){
   const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date&&!h.type);
   if(!hadLottery&&apps.length>0&&apps.length<=lim) count+=apps.length;
   count+=(data.makeupLeaves||[]).filter(m=>m.periodId===pid&&m.shift===shift&&m.date===date).length;
+  // 長假若設定占用名額則計入
+  count+=(data.longLeaves||[]).filter(l=>l.shift===shift&&l.countAsSlot&&l.startDate<=date&&date<=l.endDate).length;
   return count;
 }
 function isLoserOfPeriod(period, empId){
@@ -2848,6 +3003,7 @@ function addMakeupLeave(periodId, empId, targetDate){
   const period=data.periods.find(p=>p.id===periodId);
   const emp=data.employees.find(e=>e.id===empId);
   if(!period||!emp) return {ok:false,msg:'資料錯誤'};
+  if(period.allowMakeup===false) return {ok:false,msg:'此假期目前不開放補假申請'};
   if(!isLoserOfPeriod(period,empId).length) return {ok:false,msg:'非此假期的未中籤者'};
   const remaining=getMakeupQuota(period,empId)-getMakeupUsed(period,empId);
   if(remaining<=0) return {ok:false,msg:`補假配額已用完（每月額度 ${data.monthlyQuota||8} 天已扣除中籤天數）`};
@@ -2895,7 +3051,19 @@ function buildStatusMap(period){
   });
   // makeup → show as direct visually
   (data.makeupLeaves||[]).filter(m=>m.periodId===pid).forEach(m=>{if(!map[m.empId])map[m.empId]={};map[m.empId][m.date]='direct';});
+  // 長假 → 顯示為 extra（長假期間每日標記）
+  (data.longLeaves||[]).forEach(l=>{
+    getDates(l.startDate,l.endDate).forEach(d=>{
+      if(d>=period.start&&d<=period.end){
+        if(!map[l.empId])map[l.empId]={};
+        map[l.empId][d]='extra';
+      }
+    });
+  });
+  // 已核准的額外請假
   (data.extraLeaves||[]).filter(l=>l.status==='approved').forEach(l=>{if(!map[l.empId])map[l.empId]={};map[l.empId][l.date]='extra';});
+  // 待審核的額外請假 → 顯示為 pending（不覆蓋已有狀態）
+  (data.extraLeaves||[]).filter(l=>l.status==='pending').forEach(l=>{if(!map[l.empId])map[l.empId]={};if(!map[l.empId][l.date])map[l.empId][l.date]='el-pending';});
   return map;
 }
 
@@ -2917,9 +3085,9 @@ function renderSchedule(){
     return true;
   });
   const ON_LEAVE=['lottery','direct','extra'];
-  const STATUS_ICON={lottery:'●',direct:'●',extra:'▲',loser:'✕',pending:'○'};
-  const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending'};
-  const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中'};
+  const STATUS_ICON={lottery:'●',direct:'●',extra:'▲',loser:'✕',pending:'◐','el-pending':'?'};
+  const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending'};
+  const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中','el-pending':'請假待審'};
   if(_schView==='calendar'){
     // 日期為列、員工為欄
     let html='<div style="overflow-x:auto;"><table class="sch-table"><thead>';
@@ -3319,6 +3487,252 @@ function importData(event){
   reader.readAsText(file);
 }
 
+// ══ 個別員工排假天數 ══
+function getEmpQuota(empId){
+  const custom=(data.empQuotas||{})[empId];
+  return (custom!==undefined&&custom!==null)?custom:(data.monthlyQuota||8);
+}
+
+// ══ 長假管理 ══
+function onLLStoreChange(){
+  const store=document.getElementById('ll-store').value;
+  const empField=document.getElementById('ll-emp-field');
+  const sel=document.getElementById('ll-emp');
+  document.getElementById('ll-emp-info').innerHTML='請先選擇員工';
+  if(!store){empField.style.display='none';sel.innerHTML='<option value="">-- 選擇員工 --</option>';return;}
+  const emps=data.employees.filter(e=>(e.store||'竹北店')===store);
+  sel.innerHTML='<option value="">-- 選擇員工 --</option>';
+  emps.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o);});
+  empField.style.display='block';
+}
+function onLLEmpChange(){
+  const eid=parseInt(document.getElementById('ll-emp').value);
+  const emp=data.employees.find(e=>e.id===eid);
+  const info=document.getElementById('ll-emp-info');
+  const cq=document.getElementById('ll-custom-quota');
+  if(!emp){info.innerHTML='請先選擇員工';cq.value='';return;}
+  const currentQuota=getEmpQuota(eid);
+  const hasCustom=(data.empQuotas||{})[eid]!==undefined;
+  info.innerHTML=`<div style="font-weight:600;margin-bottom:6px;">${emp.name}（${emp.dept}）</div>
+    <div style="font-size:.8rem;color:var(--text-dim);">目前排假上限：<span style="font-family:'Space Mono',monospace;color:var(--accent);">${currentQuota} 天</span>${hasCustom?' <span style="color:var(--accent2);">[個別設定]</span>':' <span style="color:var(--text-dim);">[全局設定]</span>'}</div>`;
+  cq.value=hasCustom?(data.empQuotas||{})[eid]:'';
+}
+function addLongLeave(){
+  const eid=parseInt(document.getElementById('ll-emp').value);
+  const start=document.getElementById('ll-start').value;
+  const end=document.getElementById('ll-end').value;
+  const reason=document.getElementById('ll-reason').value.trim();
+  const countAsSlot=document.getElementById('ll-count-slot').checked;
+  const cqVal=document.getElementById('ll-custom-quota').value.trim();
+  if(!eid)return toast('請選擇員工',true);
+  if(!start||!end)return toast('請設定長假日期',true);
+  if(start>end)return toast('開始日期不能晚於結束日期',true);
+  const emp=data.employees.find(e=>e.id===eid);
+  if(!emp)return;
+  // 儲存個別 quota
+  if(!data.empQuotas) data.empQuotas={};
+  if(cqVal!==''){
+    const qv=parseInt(cqVal);
+    if(!isNaN(qv)&&qv>=0) data.empQuotas[eid]=qv;
+  }
+  if(!data.longLeaves) data.longLeaves=[];
+  data.longLeaves.push({
+    id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,
+    empId:eid,empName:emp.name,shift:emp.dept,
+    startDate:start,endDate:end,
+    reason:reason||'長假',
+    countAsSlot,
+    customQuota:cqVal!==''?parseInt(cqVal):null,
+    appliedAt:new Date().toLocaleString('zh-TW')
+  });
+  save();
+  document.getElementById('ll-start').value='';
+  document.getElementById('ll-end').value='';
+  document.getElementById('ll-reason').value='';
+  document.getElementById('ll-custom-quota').value='';
+  document.getElementById('ll-count-slot').checked=false;
+  onLLEmpChange();
+  renderLongLeaves();
+  if(document.getElementById('panel-schedule').classList.contains('active'))renderSchedule();
+  toast(`✓ ${emp.name} 長假已新增（${start}～${end}）`);
+}
+function removeLongLeave(id){
+  showModal('刪除長假','確定要刪除此長假紀錄？',()=>{
+    data.longLeaves=(data.longLeaves||[]).filter(l=>l.id!==id);
+    save();renderLongLeaves();
+    if(document.getElementById('panel-schedule').classList.contains('active'))renderSchedule();
+    toast('✓ 已刪除');
+  });
+}
+function renderLongLeaves(){
+  const el=document.getElementById('ll-list');
+  if(!el)return;
+  const leaves=data.longLeaves||[];
+  if(!leaves.length){el.innerHTML='<div class="empty"><div class="empty-icon">🏖️</div>尚無長假紀錄</div>';return;}
+  el.innerHTML=`<table><thead><tr><th>員工</th><th>班別</th><th>開始</th><th>結束</th><th>天數</th><th>原因</th><th>占名額</th><th>個別額度</th><th>操作</th></tr></thead><tbody>`+
+    leaves.map(l=>{
+      const days=getDates(l.startDate,l.endDate).length;
+      const quota=l.customQuota!==null?l.customQuota:'—';
+      return `<tr>
+        <td>${l.empName}</td>
+        <td><span class="badge b-yellow">${l.shift}</span></td>
+        <td style="font-family:'Space Mono',monospace;font-size:.76rem;">${l.startDate}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:.76rem;">${l.endDate}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:.76rem;">${days} 天</td>
+        <td style="font-size:.8rem;">${l.reason||'—'}</td>
+        <td>${l.countAsSlot?'<span class="badge b-orange">是</span>':'<span class="badge b-gray">否</span>'}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:.76rem;">${quota==='—'?'<span style="color:var(--text-dim);">全局</span>':`<span style="color:var(--accent);">${quota} 天</span>`}</td>
+        <td><button class="btn btn-danger" style="padding:3px 9px;font-size:.6rem;" onclick="removeLongLeave('${l.id}')">刪除</button></td>
+      </tr>`;
+    }).join('')+'</tbody></table>';
+}
+
+// ══ 員工端分頁切換 ══
+function switchSelfTab(name){
+  document.querySelectorAll('.self-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.self-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('self-panel-'+name).classList.add('active');
+  const tabEl=document.querySelector(`.self-tab[onclick="switchSelfTab('${name}')"]`);
+  if(tabEl) tabEl.classList.add('active');
+  if(name==='schedule') renderSelfSchedule();
+}
+
+// ══ 管理員發布假表 ══
+function publishSchedule(){
+  const pid=parseInt(document.getElementById('sch-period').value);
+  const period=data.periods.find(p=>p.id===pid);
+  if(!period)return toast('請先選擇假期',true);
+  if(!data.publishedSchedules) data.publishedSchedules=[];
+  // 移除舊的同假期發布紀錄
+  data.publishedSchedules=data.publishedSchedules.filter(s=>s.periodId!==pid);
+  // 儲存目前假表快照
+  const statusMap=buildStatusMap(period);
+  data.publishedSchedules.push({
+    periodId:pid,
+    periodName:period.name,
+    periodStart:period.start,
+    periodEnd:period.end,
+    publishedAt:new Date().toLocaleString('zh-TW'),
+    statusMap:JSON.parse(JSON.stringify(statusMap))
+  });
+  save();
+  // 更新發布狀態提示
+  const el=document.getElementById('publish-status');
+  el.textContent=`✓ 已發布「${period.name}」假表（${new Date().toLocaleString('zh-TW')}）`;
+  el.style.display='block';
+  toast(`✓ 「${period.name}」假表已發布給員工`);
+  // 若目前有員工端開著，更新分頁顯示
+  updateSelfScheduleTab();
+}
+
+function updatePublishStatus(){
+  const pid=parseInt(document.getElementById('sch-period').value);
+  const el=document.getElementById('publish-status');
+  if(!el)return;
+  if(!pid){el.style.display='none';return;}
+  const pub=(data.publishedSchedules||[]).find(s=>s.periodId===pid);
+  if(pub){
+    el.textContent=`✓ 已發布（${pub.publishedAt}）`;
+    el.style.display='block';
+  } else {
+    el.style.display='none';
+  }
+}
+
+// ══ 員工端假表顯示 ══
+function renderSelfSchedule(){
+  const el=document.getElementById('self-schedule-content');
+  const pubs=data.publishedSchedules||[];
+  if(!pubs.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📊</div>目前尚無已發布的假表</div>';
+    return;
+  }
+  const eid=_currentEmpId||(parseInt(document.getElementById('self-emp').value)||null);
+  let html='';
+  pubs.forEach(pub=>{
+    const period=data.periods.find(p=>p.id===pub.periodId);
+    if(!period)return;
+    const dates=getDates(period.start,period.end);
+    const shifts=data.departments;
+    const statusMap=pub.statusMap;
+    const ON_LEAVE=['lottery','direct','extra'];
+    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中','el-pending':'請假待審'};
+    const STATUS_ICON={lottery:'●',direct:'●',extra:'▲',loser:'✕',pending:'◐','el-pending':'?'};
+    const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending'};
+    const WD=['日','一','二','三','四','五','六'];
+
+    // 取得所有員工
+    const allEmps=data.employees.filter(e=>shifts.includes(e.dept));
+    const shiftEmpsMap={};
+    shifts.forEach(sh=>{ shiftEmpsMap[sh]=allEmps.filter(e=>e.dept===sh); });
+
+    html+=`<div style="margin-bottom:24px;">
+      <div class="section-title">${pub.periodName} <span style="color:var(--text-dim);font-size:.56rem;font-weight:400;">${pub.periodStart}～${pub.periodEnd}</span>
+        <span style="font-size:.58rem;color:var(--text-dim);margin-left:8px;">發布：${pub.publishedAt}</span>
+      </div>
+      <div style="overflow-x:auto;"><table class="sch-table"><thead>`;
+
+    // 表頭：班別群組
+    html+='<tr><th style="text-align:left;padding:6px 10px;white-space:nowrap;min-width:90px;">日期</th>';
+    shifts.forEach(sh=>{
+      const emps=shiftEmpsMap[sh]||[];
+      if(!emps.length)return;
+      html+=`<th colspan="${emps.length}" style="text-align:center;padding:5px 6px;background:rgba(232,200,74,.08);color:var(--accent);font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;border-left:2px solid var(--border);">${sh}</th>`;
+    });
+    html+='</tr>';
+    // 表頭：員工姓名（自己標粗）
+    html+='<tr><th style="padding:4px 10px;font-size:.58rem;color:var(--text-dim);font-weight:400;"></th>';
+    shifts.forEach(sh=>{
+      const emps=shiftEmpsMap[sh]||[];
+      if(!emps.length)return;
+      emps.forEach((emp,i)=>{
+        const isMe=eid&&emp.id===eid;
+        html+=`<th style="text-align:center;padding:4px 5px;min-width:44px;font-size:.66rem;font-weight:600;white-space:nowrap;${i===0?'border-left:2px solid var(--border)':''}${isMe?';color:var(--accent);background:rgba(232,200,74,.08)':''}">${emp.name}${isMe?' ★':''}</th>`;
+      });
+    });
+    html+='</tr></thead><tbody>';
+
+    // 資料列
+    dates.forEach(d=>{
+      const dt=period.dateTypes||{};
+      const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
+      const isWkd=dayType==='holiday';
+      const isClosed=dayType==='closed';
+      const rowBg=isWkd?'background:rgba(232,200,74,.04);':isClosed?'background:rgba(232,74,74,.04);':'';
+      html+=`<tr${rowBg?` style="${rowBg}"`:''}><td style="padding:5px 10px;font-family:'Space Mono',monospace;font-size:.68rem;white-space:nowrap;${isWkd?'color:var(--accent2)':isClosed?'color:var(--red);opacity:.5':''}">${fd(d)}</td>`;
+      shifts.forEach(sh=>{
+        const emps=shiftEmpsMap[sh]||[];
+        if(!emps.length)return;
+        const lim=getLim(period,sh,d);
+        emps.forEach((emp,i)=>{
+          const st=(statusMap[emp.id]||{})[d];
+          const cls=st?STATUS_CLASS[st]:'';
+          const title=st?STATUS_LABEL[st]:'';
+          const icon=lim===0?'—':st?STATUS_ICON[st]:'';
+          const isMe=eid&&emp.id===eid;
+          html+=`<td class="${cls}" title="${title}" style="${i===0?'border-left:2px solid var(--border);':''}${lim===0?'opacity:.3':''}${isMe?'outline:2px solid var(--accent);outline-offset:-2px;':''}"><span class="cell-dot">${icon}</span></td>`;
+        });
+      });
+      html+='</tr>';
+    });
+
+    // 可休天數列
+    html+='<tr style="border-top:2px solid var(--border);"><td style="padding:5px 10px;font-family:\'Space Mono\',monospace;font-size:.6rem;color:var(--text-dim);">可休天數</td>';
+    shifts.forEach(sh=>{
+      const emps=shiftEmpsMap[sh]||[];
+      if(!emps.length)return;
+      emps.forEach((emp,i)=>{
+        const empMap=statusMap[emp.id]||{};
+        const count=dates.filter(d=>ON_LEAVE.includes(empMap[d])).length;
+        const isMe=eid&&emp.id===eid;
+        html+=`<td style="text-align:center;font-family:'Space Mono',monospace;font-size:.68rem;font-weight:700;color:${count>0?'var(--accent)':'var(--text-dim)'};${i===0?'border-left:2px solid var(--border)':''}${isMe?';background:rgba(232,200,74,.08)':''}">${count}</td>`;
+      });
+    });
+    html+='</tr></tbody></table></div></div>';
+  });
+  el.innerHTML=html||'<div class="empty"><div class="empty-icon">📊</div>目前尚無已發布的假表</div>';
+}
+
 // ══ INIT ══
 function _storeKey(store){
   // 將店名轉為安全的英文 ID，避免中文轉底線後衝突
@@ -3436,7 +3850,9 @@ function refreshElSelects(){
   const qd=document.getElementById('quota-display');if(qd)qd.textContent=quota;
   const mi=document.getElementById('monthly-quota');if(mi)mi.value=quota;
   const aqd=document.getElementById('app-quota-display');if(aqd)aqd.textContent=quota;
+  const llgq=document.getElementById('ll-global-quota');if(llgq)llgq.textContent=quota;
   renderDailyLimitTable();
+  renderLongLeaves();
 }
 function bootUI(){
   if(USE_LOCAL){
