@@ -197,6 +197,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
 @media(max-width:700px){.main{padding:13px;}.grid-2,.grid-3{grid-template-columns:1fr;}.tabs{padding:0 10px;}.header{padding:14px 16px;}.mode-btn span{display:none;}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -239,7 +240,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <!-- 員工入口 -->
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title" style="margin-bottom:12px;">👤 員工自助登入</div>
-      <div class="field" style="margin-bottom:10px;"><label>姓名</label>
+      <div class="field" style="margin-bottom:10px;"><label>店別</label>
+        <select id="login-store-select" onchange="onLoginStoreChange()" style="width:100%;">
+          <option value="">-- 請選擇店別 --</option>
+          <option value="竹北店">竹北店</option>
+          <option value="關新店">關新店</option>
+        </select>
+      </div>
+      <div class="field" id="login-emp-field" style="margin-bottom:10px;display:none;"><label>姓名</label>
         <select id="login-emp-select" onchange="onLoginEmpChange()" style="width:100%;"><option value="">-- 請選擇 --</option></select>
       </div>
 
@@ -335,10 +343,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
               <option value="關新店">關新店</option>
             </select>
           </div>
-          <div class="field"><label>性別</label>
+          <div class="field"><label>職稱</label>
             <div style="display:flex;gap:12px;padding:6px 0;">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="emp-gender" value="male" checked> 男</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="emp-gender" value="female"> 女</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="emp-gender" value="male" checked> 足師</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="emp-gender" value="female"> 體師</label>
             </div>
           </div>
           <button class="btn btn-primary" onclick="addEmployee()">新增員工</button>
@@ -369,7 +377,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="btn btn-ghost" style="padding:4px 10px;font-size:.6rem;" onclick="clearAllEmployees()">清除全部</button>
           </div>
         </div>
-        <table><thead><tr><th>#</th><th>姓名</th><th>性別</th><th>店別</th><th>班別</th><th>操作</th></tr></thead>
+        <table><thead><tr><th>#</th><th>姓名</th><th>職稱</th><th>店別</th><th>班別</th><th>操作</th></tr></thead>
         <tbody id="emp-table"><tr><td colspan="4" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr></tbody></table>
       </div>
     </div>
@@ -384,18 +392,18 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="grid-2" style="margin-bottom:13px;">
           <div>
             <div class="field"><label>假期名稱</label><input type="text" id="period-name" placeholder="e.g. 春節假期 2026"></div>
-            <div class="field"><label>開放性別</label>
-              <select id="period-gender" style="width:100%;">
-                <option value="">全部（男女皆可）</option>
-                <option value="male">僅限男性</option>
-                <option value="female">僅限女性</option>
-              </select>
-            </div>
             <div class="field"><label>開放店別</label>
               <select id="period-store" style="width:100%;">
                 <option value="">全部店別</option>
                 <option value="竹北店">僅限竹北店</option>
                 <option value="關新店">僅限關新店</option>
+              </select>
+            </div>
+            <div class="field"><label>開放職稱</label>
+              <select id="period-gender" style="width:100%;">
+                <option value="">全部</option>
+                <option value="male">僅限足師</option>
+                <option value="female">僅限體師</option>
               </select>
             </div>
           </div>
@@ -472,7 +480,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="section-title">代為新增額外請假</div>
         <div class="grid-2">
           <div>
-            <div class="field"><label>選擇員工</label>
+            <div class="field"><label>店別</label>
+              <select id="proxy-el-store" onchange="onProxyElStoreChange()" style="width:100%;">
+                <option value="">-- 選擇店別 --</option>
+                <option value="竹北店">竹北店</option>
+                <option value="關新店">關新店</option>
+              </select>
+            </div>
+            <div class="field" id="proxy-el-emp-field" style="display:none;"><label>選擇員工</label>
               <select id="proxy-el-emp" onchange="onProxyElEmpChange()"><option value="">-- 選擇員工 --</option></select>
             </div>
             <div class="field"><label>請假日期</label>
@@ -498,14 +513,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <select id="app-filter-period" onchange="renderApplications()" style="flex:1;min-width:130px;padding:5px 9px;font-size:.72rem;"><option value="">全部假期</option></select>
           <select id="app-filter-shift" onchange="renderApplications()" style="flex:1;min-width:100px;padding:5px 9px;font-size:.72rem;"><option value="">全部班別</option></select>
           <select id="app-filter-gender" onchange="renderApplications()" style="flex:1;min-width:90px;padding:5px 9px;font-size:.72rem;">
-            <option value="">全部性別</option>
-            <option value="male">男</option>
-            <option value="female">女</option>
-          </select>
-          <select id="app-filter-store" onchange="renderApplications()" style="flex:1;min-width:90px;padding:5px 9px;font-size:.72rem;">
-            <option value="">全部店別</option>
-            <option value="竹北店">竹北店</option>
-            <option value="關新店">關新店</option>
+            <option value="">全部職稱</option>
+            <option value="male">足師</option>
+            <option value="female">體師</option>
           </select>
         </div>
         <div id="app-overview"></div>
@@ -526,6 +536,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
             <button class="btn btn-primary" id="btn-run-all" onclick="runAllLottery()">⚡ 一鍵執行全部抽籤</button>
             <button class="btn btn-ghost" onclick="toggleManualMode()">🎯 手動選擇單一日期</button>
+            <button class="btn btn-danger" id="btn-reset-all" onclick="resetAllLotteryResult()" style="display:none;">🔄 重置整份假表抽籤</button>
           </div>
           <!-- 手動選擇 -->
           <div id="lottery-manual-wrap" style="display:none;">
@@ -603,7 +614,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
       <div class="card">
-        <div class="section-title">各班別每日出勤人數上限設定</div>
+        <div class="section-title">每日未出勤上限設定</div>
         <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">超過此上限（排假＋額外請假）的申請仍可核准，但會顯示「當日超休，須出示證明」警示。留空表示不限制。</div>
         <div id="daily-limit-table" style="overflow-x:auto;"></div>
         <button class="btn btn-primary" style="margin-top:12px;font-size:.7rem;padding:7px 16px;" onclick="saveDailyLimits()">儲存上限設定</button>
@@ -644,11 +655,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="field" id="sch-shift-field" style="margin-bottom:0;display:none;"><label>選擇班別</label>
             <select id="sch-shift" onchange="renderSchedule()" style="min-width:120px;"><option value="">全部班別</option></select>
           </div>
-          <div class="field" id="sch-gender-field" style="margin-bottom:0;display:none;"><label>性別</label>
+          <div class="field" id="sch-gender-field" style="margin-bottom:0;display:none;"><label>職稱</label>
             <select id="sch-gender" onchange="renderSchedule()" style="min-width:100px;">
               <option value="">全部</option>
-              <option value="male">男</option>
-              <option value="female">女</option>
+              <option value="male">足師</option>
+              <option value="female">體師</option>
             </select>
           </div>
           <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
@@ -662,9 +673,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
 
       <!-- 切換模式 -->
-      <div style="display:flex;gap:7px;margin-bottom:14px;">
+      <div style="display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="sch-view-calendar" onclick="setSchView('calendar')" style="font-size:.68rem;padding:7px 14px;">📅 月曆視圖</button>
         <button class="btn btn-ghost" id="sch-view-shift" onclick="setSchView('shift')" style="font-size:.68rem;padding:7px 14px;">👥 班別視圖</button>
+        <button class="btn btn-ghost" onclick="exportScheduleExcel()" style="font-size:.68rem;padding:7px 14px;margin-left:auto;border-color:rgba(74,232,122,.4);color:var(--green);">📊 匯出 Excel</button>
       </div>
 
       <div id="sch-calendar-view">
@@ -690,7 +702,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <!-- 員工 PIN 管理 -->
         <div class="card">
           <div class="section-title">員工 PIN 碼管理</div>
-          <div class="field"><label>選擇員工</label>
+          <div class="field"><label>店別</label>
+            <select id="pin-store-select" onchange="onPinStoreChange()" style="width:100%;">
+              <option value="">-- 選擇店別 --</option>
+              <option value="竹北店">竹北店</option>
+              <option value="關新店">關新店</option>
+            </select>
+          </div>
+          <div class="field" id="pin-emp-field" style="display:none;"><label>選擇員工</label>
             <select id="pin-emp-select" onchange="onPinEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
           </div>
           <div id="pin-current" style="font-size:.78rem;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);"></div>
@@ -969,6 +988,21 @@ let _currentRole = null; // 'superadmin' | 'admin' | 'employee'
 let _currentEmpId = null;
 let _currentAdminUser = null;
 
+function onLoginStoreChange(){
+  const store=document.getElementById('login-store-select').value;
+  const empField=document.getElementById('login-emp-field');
+  const sel=document.getElementById('login-emp-select');
+  const errEl=document.getElementById('login-emp-err');
+  errEl.style.display='none';
+  document.getElementById('login-emp-normal').style.display='none';
+  document.getElementById('login-emp-setup').style.display='none';
+  if(!store){ empField.style.display='none'; sel.innerHTML='<option value="">-- 請選擇 --</option>'; return; }
+  // 篩選該店別員工
+  const emps=(data.employees||[]).filter(e=>(e.store||'竹北店')===store);
+  sel.innerHTML='<option value="">-- 請選擇姓名 --</option>';
+  emps.forEach(e=>{ const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o); });
+  empField.style.display='block';
+}
 function onLoginEmpChange(){
   const eid=parseInt(document.getElementById('login-emp-select').value);
   const emp=data.employees.find(e=>e.id===eid);
@@ -1056,12 +1090,10 @@ function showChangePinModal(){
 }
 
 function showLoginScreen(){
+  document.getElementById('login-store-select').value='';
+  document.getElementById('login-emp-field').style.display='none';
   const sel=document.getElementById('login-emp-select');
   sel.innerHTML='<option value="">-- 請選擇 --</option>';
-  (data.employees||[]).forEach(e=>{
-    const o=document.createElement('option');o.value=e.id;
-    o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o);
-  });
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('main-header').style.display='none';
   document.getElementById('admin-view').style.display='none';
@@ -1293,7 +1325,7 @@ function renderEmployees(){
   tb.innerHTML=list.map((e,i)=>`<tr>
     <td><span style="font-family:'Space Mono',monospace;font-size:.66rem;color:var(--text-dim)">${String(i+1).padStart(2,'0')}</span></td>
     <td>${e.name}</td>
-    <td><span class="badge ${e.gender==='female'?'b-red':'b-blue'}" style="font-size:.6rem;">${e.gender==='female'?'女':'男'}</span></td>
+    <td><span class="badge ${e.gender==='female'?'b-red':'b-blue'}" style="font-size:.6rem;">${e.gender==='female'?'體師':'足師'}</span></td>
     <td><span class="badge b-green" style="font-size:.6rem;">${e.store||'竹北店'}</span></td>
     <td><span class="badge b-yellow">${e.dept}</span></td>
     <td><button class="btn btn-danger" style="padding:3px 10px;font-size:.6rem;" onclick="removeEmployee(${e.id})">移除</button></td>
@@ -1480,7 +1512,7 @@ function renderPeriods(){
             <span style="color:var(--green);">平日 ${wdCount} 天</span>
             <span style="color:var(--accent);">假日 ${hlCount} 天</span>
             ${clCount?`<span style="color:var(--red);">不開放 ${clCount} 天</span>`:''}
-            ${p.genderRestrict==='male'?`<span style="color:#7ab4f0;">僅限男性</span>`:p.genderRestrict==='female'?`<span style="color:#f07ab4;">僅限女性</span>`:''}
+            ${p.genderRestrict==='male'?`<span style="color:#7ab4f0;">僅限足師</span>`:p.genderRestrict==='female'?`<span style="color:#f07ab4;">僅限體師</span>`:''}
             ${p.storeRestrict?`<span style="color:var(--accent);">僅限${p.storeRestrict}</span>`:''}
           </div>
         </div>
@@ -1599,7 +1631,7 @@ function _addAppCore(periodId,empId,dates){
   if(p.genderRestrict){
     const empGender=emp.gender||'male';
     if(empGender!==p.genderRestrict){
-      const label=p.genderRestrict==='male'?'男性':'女性';
+      const label=p.genderRestrict==='male'?'足師':'體師';
       return{ok:false,msg:`此假期僅開放${label}申請`};
     }
   }
@@ -1645,9 +1677,27 @@ function refreshAppSelects(){
   });
   const fs=document.getElementById('app-filter-shift');
   if(fs){const c=fs.value;fs.innerHTML='<option value="">全部班別</option>';data.departments.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d+'';fs.appendChild(o);});if(c)fs.value=c;}
-  // populate proxy extra leave employee select
+  // proxy-el-emp 由 onProxyElStoreChange 控制，此處重置
   const pe=document.getElementById('proxy-el-emp');
-  if(pe){const c=pe.value;pe.innerHTML='<option value="">-- 選擇員工 --</option>';data.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;pe.appendChild(o);});if(c)pe.value=c;}
+  if(pe){pe.innerHTML='<option value="">-- 選擇員工 --</option>';}
+  const pStore=document.getElementById('proxy-el-store');
+  if(pStore) pStore.value='';
+  const pEmpField=document.getElementById('proxy-el-emp-field');
+  if(pEmpField) pEmpField.style.display='none';
+  const pInfo=document.getElementById('proxy-el-quota-info');
+  if(pInfo) pInfo.innerHTML='請先選擇員工';
+}
+function onProxyElStoreChange(){
+  const store=document.getElementById('proxy-el-store').value;
+  const empField=document.getElementById('proxy-el-emp-field');
+  const sel=document.getElementById('proxy-el-emp');
+  const info=document.getElementById('proxy-el-quota-info');
+  info.innerHTML='請先選擇員工';
+  if(!store){ empField.style.display='none'; sel.innerHTML='<option value="">-- 選擇員工 --</option>'; return; }
+  const emps=data.employees.filter(e=>(e.store||'竹北店')===store);
+  sel.innerHTML='<option value="">-- 選擇員工 --</option>';
+  emps.forEach(e=>{ const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o); });
+  empField.style.display='block';
 }
 function onProxyElEmpChange(){
   const eid=parseInt(document.getElementById('proxy-el-emp').value);
@@ -1669,6 +1719,8 @@ function addProxyExtraLeave(){
   if(!emp)return;
   if((data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected'))
     return toast('此員工此日期已有申請',true);
+  if(hasScheduledLeave(eid,date))
+    return toast('當天已排假，無須請假',true);
   if(!data.extraLeaves)data.extraLeaves=[];
   data.extraLeaves.push({
     id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,
@@ -1700,7 +1752,7 @@ function onAppPeriodChange(){
     return true;
   });
   const restrictions=[];
-  if(p.genderRestrict) restrictions.push(p.genderRestrict==='male'?'男性':'女性');
+  if(p.genderRestrict) restrictions.push(p.genderRestrict==='male'?'足師':'體師');
   if(p.storeRestrict) restrictions.push(p.storeRestrict);
   if(restrictions.length) empSel.innerHTML=`<option value="">-- 選擇員工（僅${restrictions.join('・')}）--</option>`;
   else empSel.innerHTML='<option value="">-- 選擇員工 --</option>';
@@ -1803,7 +1855,7 @@ function onSelfPeriodChange(){
     const emp=data.employees.find(e=>e.id===_currentEmpId);
     if(!emp)return;
     if(p.genderRestrict&&(emp.gender||'male')!==p.genderRestrict)
-      return toast(`此假期僅開放${p.genderRestrict==='male'?'男性':'女性'}申請`,true);
+      return toast(`此假期僅開放${p.genderRestrict==='male'?'足師':'體師'}申請`,true);
     if(p.storeRestrict&&(emp.store||'竹北店')!==p.storeRestrict&&_currentRole==='employee')
       return toast(`此假期僅開放${p.storeRestrict}員工申請`,true);
     empSel.innerHTML=`<option value="${emp.id}">${emp.name}（${emp.dept}）</option>`;
@@ -1818,7 +1870,7 @@ function onSelfPeriodChange(){
     return true;
   });
   const restrictions=[];
-  if(p.genderRestrict) restrictions.push(p.genderRestrict==='male'?'男性':'女性');
+  if(p.genderRestrict) restrictions.push(p.genderRestrict==='male'?'足師':'體師');
   if(p.storeRestrict) restrictions.push(p.storeRestrict);
   empSel.innerHTML=restrictions.length
     ? `<option value="">-- 選擇您的姓名（僅${restrictions.join('・')}）--</option>`
@@ -1943,6 +1995,7 @@ function onLotteryPeriodChange(){
   if(!p){wrap.style.display='none';return;}
   wrap.style.display='block';
   document.getElementById('lottery-manual-wrap').style.display='none';
+  document.getElementById('btn-reset-all').style.display=_currentRole==='superadmin'?'inline-block':'none';
   // Build preview of all slots needing lottery
   buildAllPreview(p);
   // Setup manual selects
@@ -1965,7 +2018,7 @@ function buildAllPreview(p){
       if(cnt<=lim){ directCount+=cnt; return; }
       const alreadyDone=data.history.some(h=>
         (h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))
-        &&h.shift===shift&&h.date===d
+        &&h.shift===shift&&h.date===d&&!h.type
       );
       if(alreadyDone) done.push({shift,date:d,lim,cnt});
       else slots.push({shift,date:d,lim,cnt,applicants:apps});
@@ -2022,7 +2075,7 @@ function runAllLottery(){
       // skip if already drawn (exists in history for this period+shift+date)
       const alreadyDone=data.history.some(h=>
         (h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))
-        &&h.shift===shift&&h.date===d
+        &&h.shift===shift&&h.date===d&&!h.type
       );
       if(alreadyDone) return;
       _batchSlots.push({period:p,shift,date:d,lim,applicants:apps});
@@ -2080,6 +2133,10 @@ function showAllDone(){
   document.getElementById('all-done-summary').innerHTML=html||'<div class="empty">無抽籤結果</div>';
   // Refresh schedule if visible
   if(document.getElementById('panel-schedule').classList.contains('active')) renderSchedule();
+  // 更新待抽籤/已完成預覽
+  const _pid=parseInt(document.getElementById('lottery-period').value);
+  const _p=data.periods.find(x=>x.id===_pid);
+  if(_p) buildAllPreview(_p);
 }
 
 function saveAllResults(){
@@ -2135,7 +2192,92 @@ function onLotteryDayChange(){
   if(lim===0) si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br><span style="color:var(--text-dim);">此日不開放</span>`;
   else if(cnt===0) si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>👥 0人申請，上限 ${lim} 人`;
   else if(cnt<=lim) si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>👥 ${cnt}人申請，上限 ${lim} 人<br><span style="color:var(--green);">✓ 未超限，直接錄取</span>`;
-  else{ si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>👥 <strong style="color:var(--red)">${cnt}人</strong>申請，上限 ${lim} 人<br><span style="color:var(--accent2);">⚠ 超限，需抽出 ${lim} 人</span>`; btn.disabled=false; }
+  else{
+    const alreadyDone=data.history.some(h=>(h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))&&h.shift===shift&&h.date===date&&!h.type);
+    if(alreadyDone){
+      si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>👥 <strong style="color:var(--red)">${cnt}人</strong>申請，上限 ${lim} 人<br><span style="color:var(--green);">✓ 此場次已完成抽籤</span>${_currentRole==='superadmin'?`<br><button class="btn btn-danger" style="margin-top:8px;padding:4px 12px;font-size:.68rem;" onclick="resetLotteryResult('${p.id}','${shift}','${date}')">🔄 重置此場抽籤</button>`:''}`;
+      btn.disabled=true;
+    } else {
+      si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>👥 <strong style="color:var(--red)">${cnt}人</strong>申請，上限 ${lim} 人<br><span style="color:var(--accent2);">⚠ 超限，需抽出 ${lim} 人</span>`;
+      btn.disabled=false;
+    }
+  }
+}
+function resetAllLotteryResult(){
+  if(_currentRole!=='superadmin')return toast('僅超級管理員可執行重置',true);
+  const pid=parseInt(document.getElementById('lottery-period').value);
+  const period=data.periods.find(p=>p.id===pid);
+  if(!period)return toast('請先選擇假期',true);
+  // 計算已完成的場次數
+  const doneCount=data.history.filter(h=>{
+    const pidMatch=(Number(h.periodId)===Number(pid)||Number(h.periodId)===Number(period.id));
+    const nameMatch=(h.periodName===period.name&&h.periodStart===period.start);
+    return (pidMatch||nameMatch)&&!h.type;
+  }).length;
+  if(!doneCount)return toast('此假期尚無已完成的抽籤紀錄',true);
+  showModal('重置整份假表抽籤',`確定要重置「${period.name}」所有已完成的 ${doneCount} 場抽籤結果？此操作不可復原，所有場次將恢復為抽籤前狀態。`,()=>{
+    // 記錄整份重置至歷史
+    data.history.unshift({
+      id:Date.now()+Math.random(),
+      type:'reset',
+      periodId:pid,
+      periodName:period.name,
+      periodStart:period.start,
+      shift:'全部班別',date:'全部日期',
+      resetAt:new Date().toLocaleString('zh-TW'),
+      drawnAt:new Date().toLocaleString('zh-TW'),
+      note:`重置整份假表：${period.name}（共 ${doneCount} 場）`,
+      winners:[],losers:[],total:0,limit:0
+    });
+    // 刪除此假期所有正常抽籤紀錄（保留重置紀錄）
+    // 用最寬鬆的條件：periodId 數值相等 或 periodName+periodStart 相等
+    data.history=data.history.filter(h=>{
+      const pidMatch=(Number(h.periodId)===Number(pid)||Number(h.periodId)===Number(period.id));
+      const nameMatch=(h.periodName===period.name&&h.periodStart===period.start);
+      const belongsToPeriod=pidMatch||nameMatch;
+      const isNormalRecord=!h.type;
+      if(belongsToPeriod&&isNormalRecord) console.log('[重置] 刪除紀錄:',h.shift,h.date,h.periodId,h.periodName);
+      return !(belongsToPeriod&&isNormalRecord);
+    });
+    console.log('[重置] 剩餘歷史筆數:',data.history.length);
+    save();
+    buildAllPreview(period);
+    toast(`✓ 已重置「${period.name}」所有抽籤結果`);
+    if(document.getElementById('panel-history').classList.contains('active'))renderHistory();
+    if(document.getElementById('panel-schedule').classList.contains('active'))renderSchedule();
+  });
+}
+function resetLotteryResult(periodId, shift, date){
+  if(_currentRole!=='superadmin')return toast('僅超級管理員可執行重置',true);
+  const pid=parseInt(periodId);
+  const period=data.periods.find(p=>p.id===pid);
+  if(!period)return;
+  showModal('重置抽籤結果',`確定要重置「${period.name}」${shift} ${date} 的抽籤結果？此操作將刪除該場次歷史紀錄並恢復為抽籤前狀態。`,()=>{
+    // 記錄重置操作至歷史
+    const removed=data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date);
+    if(removed.length){
+      data.history.unshift({
+        id:Date.now()+Math.random(),
+        type:'reset',
+        periodId:pid,
+        periodName:period.name,
+        periodStart:period.start,
+        shift,date,
+        resetAt:new Date().toLocaleString('zh-TW'),
+        drawnAt:new Date().toLocaleString('zh-TW'),
+        note:`重置：${shift} ${date} 的抽籤結果（原有 ${removed.length} 筆紀錄）`,
+        winners:[],losers:[],total:0,limit:0
+      });
+    }
+    // 刪除該場次歷史
+    data.history=data.history.filter(h=>!((h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date&&h.type!=='reset'));
+    save();
+    toast(`✓ 已重置 ${shift} ${date} 的抽籤結果`);
+    buildAllPreview(period);
+    onLotteryDayChange();
+    if(document.getElementById('panel-history').classList.contains('active'))renderHistory();
+    if(document.getElementById('panel-schedule').classList.contains('active'))renderSchedule();
+  });
 }
 function startSingleLottery(){
   const pid=parseInt(document.getElementById('lottery-period').value);
@@ -2204,6 +2346,8 @@ function showResult(){
     shift,date,limit,total:resultObj.total,winners:resultObj.winners,losers:resultObj.losers,
     drawnAt:new Date().toLocaleString('zh-TW')});
   save();
+  // 更新待抽籤/已完成預覽
+  if(period) buildAllPreview(period);
 
   // Render result list
   let html='';
@@ -2226,6 +2370,7 @@ function resetLottery(){
   LS={period:null,shift:null,date:null,participants:[],drawn:[],limit:0,running:false,saved:false,allResults:[],mode:'all'};
   _batchSlots=[];_batchIdx=0;_batchAllResults=[];
   ['lottery-stage','result-section','all-done-section','btn-draw','btn-auto','btn-next-slot'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  const bra=document.getElementById('btn-reset-all');if(bra)bra.style.display='none';
 }
 
 // ══ EXTRA LEAVE ══
@@ -2325,6 +2470,7 @@ function selfSubmitExtraLeave(){
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return;
   if((data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected')) return toast('此日期已申請過',true);
+  if(hasScheduledLeave(eid,date)) return toast('當天已排假，無須請假',true);
   if(!data.extraLeaves) data.extraLeaves=[];
   data.extraLeaves.push({id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,empId:eid,empName:emp.name,shift:emp.dept,date,reason,status:'pending',appliedAt:new Date().toLocaleString('zh-TW')});
   save();
@@ -2343,7 +2489,12 @@ function renderHistory(){
   const el=document.getElementById('history-list');
   document.getElementById('history-count').textContent=`共 ${data.history.length} 筆紀錄`;
   if(!data.history.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div>尚無抽籤紀錄</div>';return;}
-  el.innerHTML=data.history.map(r=>`<div class="history-item" onclick="this.classList.toggle('open')">
+  el.innerHTML=data.history.map(r=>{
+    if(r.type==='reset') return `<div class="history-item" style="opacity:.6;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><div style="font-weight:600;font-size:.91rem;">🔄 ${r.periodName}</div><span class="badge b-gray">${r.drawnAt}</span></div>
+      <div style="font-size:.76rem;color:var(--text-dim);">📅 ${r.date}　🏷️ ${r.shift||'—'}　${r.note||'已重置'}</div>
+    </div>`;
+    return `<div class="history-item" onclick="this.classList.toggle('open')">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><div style="font-weight:600;font-size:.91rem;">${r.periodName}</div><span class="badge b-orange">${r.drawnAt}</span></div>
     <div style="font-size:.76rem;color:var(--text-dim);">📅 ${r.date}　🏷️ ${r.shift||'—'}　👥 抽籤 ${r.total} 人，錄取 ${r.winners.length}/${r.limit} 人</div>
     <div class="history-detail">
@@ -2351,7 +2502,7 @@ function renderHistory(){
         ${r.winners.map((w,i)=>`<span class="badge b-green" style="margin:2px;">#${i+1} ${w.name}（${w.dept}）</span>`).join('')}</div>
       ${r.losers.length?`<div><div style="font-family:'Space Mono',monospace;font-size:.58rem;color:var(--text-dim);letter-spacing:.1em;margin-bottom:5px;">未錄取</div>${r.losers.map(w=>`<span class="badge b-gray" style="margin:2px;">${w.name}（${w.dept}）</span>`).join('')}</div>`:''}
     </div>
-  </div>`).join('');
+  </div>`;}).join('');
 }
 function clearHistory(){
   if(!data.history.length)return toast('無歷史紀錄',true);
@@ -2370,17 +2521,138 @@ function setSchView(v){
   renderSchedule();
 }
 
+function exportScheduleExcel(){
+  if(typeof XLSX==='undefined')return toast('Excel 套件載入中，請稍後再試',true);
+  const pid=parseInt(document.getElementById('sch-period').value);
+  const period=data.periods.find(p=>p.id===pid);
+  if(!period)return toast('請先選擇假期',true);
+
+  const wb=XLSX.utils.book_new();
+
+  if(_schView==='calendar'){
+    // ── 月曆視圖匯出 ──
+    const filterShift=document.getElementById('sch-shift').value;
+    const filterGender=document.getElementById('sch-gender')?.value||'';
+    const filterStore=document.getElementById('sch-store')?.value||'';
+    const dates=getDates(period.start,period.end);
+    const shifts=filterShift?[filterShift]:data.departments;
+    const statusMap=buildStatusMap(period);
+    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中'};
+    const ON_LEAVE=['lottery','direct','extra'];
+
+    const allEmps=data.employees.filter(e=>{
+      if(!shifts.includes(e.dept)) return false;
+      if(filterGender&&(e.gender||'male')!==filterGender) return false;
+      if(filterStore&&(e.store||'竹北店')!==filterStore) return false;
+      return true;
+    });
+
+    // 標題列1：班別群組
+    const row1=['日期'];
+    shifts.forEach(shift=>{
+      const emps=allEmps.filter(e=>e.dept===shift);
+      if(!emps.length)return;
+      emps.forEach((emp,i)=>row1.push(i===0?shift:''));
+    });
+    // 標題列2：員工姓名
+    const row2=[''];
+    shifts.forEach(shift=>{
+      const emps=allEmps.filter(e=>e.dept===shift);
+      if(!emps.length)return;
+      emps.forEach(emp=>row2.push(emp.name));
+    });
+    // 資料列
+    const dataRows=dates.map(d=>{
+      const dt=period.dateTypes||{};
+      const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
+      const row=[fd(d)+(dayType==='holiday'?' [假日]':dayType==='closed'?' [不開放]':'')];
+      shifts.forEach(shift=>{
+        const emps=allEmps.filter(e=>e.dept===shift);
+        if(!emps.length)return;
+        emps.forEach(emp=>{
+          const st=(statusMap[emp.id]||{})[d];
+          row.push(st?STATUS_LABEL[st]:'');
+        });
+      });
+      return row;
+    });
+    // 可休天數列
+    const totalRow=['可休天數'];
+    shifts.forEach(shift=>{
+      const emps=allEmps.filter(e=>e.dept===shift);
+      if(!emps.length)return;
+      emps.forEach(emp=>{
+        const empMap=statusMap[emp.id]||{};
+        totalRow.push(dates.filter(d=>ON_LEAVE.includes(empMap[d])).length);
+      });
+    });
+
+    const wsData=[row1,row2,...dataRows,totalRow];
+    const ws=XLSX.utils.aoa_to_sheet(wsData);
+    // 欄寬
+    ws['!cols']=[{wch:14},...row2.slice(1).map(()=>({wch:10}))];
+    XLSX.utils.book_append_sheet(wb,ws,'月曆視圖');
+
+  } else {
+    // ── 班別視圖匯出（每個班別一個 Sheet）──
+    const filterShift=document.getElementById('sch-shift').value;
+    const shifts=filterShift?[filterShift]:data.departments;
+    const dates=getDates(period.start,period.end);
+    const statusMap=buildStatusMap(period);
+    const ON_LEAVE=['lottery','direct','extra'];
+    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中'};
+
+    shifts.forEach(shift=>{
+      const emps=data.employees.filter(e=>e.dept===shift);
+      const header=['日期','已/上限','休假人員','未中籤','申請中'];
+      const rows=dates.map(d=>{
+        const lim=getLim(period,shift,d);
+        if(lim===0)return null;
+        const confirmed=getConfirmedOnDate(period,shift,d);
+        const onLeave=emps.filter(emp=>ON_LEAVE.includes((statusMap[emp.id]||{})[d])).map(e=>e.name).join('、');
+        const losers=emps.filter(emp=>(statusMap[emp.id]||{})[d]==='loser').map(e=>e.name).join('、');
+        const pending=emps.filter(emp=>(statusMap[emp.id]||{})[d]==='pending').map(e=>e.name).join('、');
+        return [fd(d),`${confirmed}/${lim}`,onLeave,losers,pending];
+      }).filter(Boolean);
+
+      const wsData=[header,...rows];
+      const ws=XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols']=[{wch:14},{wch:8},{wch:30},{wch:20},{wch:20}];
+      // Sheet 名稱不可超過31字元
+      XLSX.utils.book_append_sheet(wb,ws,shift.slice(0,31));
+    });
+  }
+
+  // 匯出檔案
+  const ts=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`假表_${period.name}_${ts}.xlsx`);
+  toast('✓ Excel 已匯出');
+}
+
 function onSchPeriodChange(){
   const pid=parseInt(document.getElementById('sch-period').value);
-  const show=pid?'block':'none';
-  document.getElementById('sch-store-field').style.display=show;
-  document.getElementById('sch-shift-field').style.display=show;
-  document.getElementById('sch-gender-field').style.display=show;
-  if(!pid){
+  const period=pid?data.periods.find(p=>p.id===pid):null;
+  // 無假期：全部隱藏並重置
+  if(!period){
+    ['sch-store-field','sch-shift-field','sch-gender-field'].forEach(id=>document.getElementById(id).style.display='none');
     document.getElementById('sch-store').value='';
     document.getElementById('sch-shift').value='';
     document.getElementById('sch-gender').value='';
+    renderSchedule();
+    return;
   }
+  // 店別：假期未限定店別才顯示多店篩選
+  const showStore=!period.storeRestrict;
+  document.getElementById('sch-store-field').style.display=showStore?'block':'none';
+  if(!showStore) document.getElementById('sch-store').value=period.storeRestrict||'';
+  // 班別：依該假期實際有申請的班別決定（若所有班別皆有申請則顯示篩選）
+  const shiftsInPeriod=data.departments.filter(sh=>data.employees.some(e=>e.dept===sh));
+  document.getElementById('sch-shift-field').style.display=shiftsInPeriod.length>1?'block':'none';
+  if(shiftsInPeriod.length<=1) document.getElementById('sch-shift').value=shiftsInPeriod[0]||'';
+  // 職稱：假期未限定職稱才顯示篩選
+  const showGender=!period.genderRestrict;
+  document.getElementById('sch-gender-field').style.display=showGender?'block':'none';
+  if(!showGender) document.getElementById('sch-gender').value=period.genderRestrict||'';
   renderSchedule();
 }
 function initSchedule(){
@@ -2407,11 +2679,11 @@ function initSchedule(){
 function getConfirmedOnDate(period, shift, date){
   const pid=period.id;
   let count=0;
-  data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date)
+  data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date&&!h.type)
     .forEach(h=>{ count+=h.winners.length; });
   const lim=getLim(period,shift,date);
   const apps=getApps(pid,shift,date);
-  const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date);
+  const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===date&&!h.type);
   if(!hadLottery&&apps.length>0&&apps.length<=lim) count+=apps.length;
   count+=(data.makeupLeaves||[]).filter(m=>m.periodId===pid&&m.shift===shift&&m.date===date).length;
   return count;
@@ -2419,7 +2691,7 @@ function getConfirmedOnDate(period, shift, date){
 function isLoserOfPeriod(period, empId){
   const pid=period.id;
   const loserDates=[];
-  data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))).forEach(h=>{
+  data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&!h.type).forEach(h=>{
     const emp=data.employees.find(e=>e.id===empId);
     if(emp&&h.losers.some(l=>l.name===emp.name&&l.dept===emp.dept)) loserDates.push(h.date);
   });
@@ -2431,7 +2703,7 @@ function getMakeupQuota(period, empId){
   const pid = period.id;
   // count lottery wins for this emp in this period
   let won = 0;
-  data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))).forEach(h=>{
+  data.history.filter(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&!h.type).forEach(h=>{
     const emp=data.employees.find(e=>e.id===empId);
     if(emp&&h.winners.some(w=>w.name===emp.name&&w.dept===emp.dept)) won++;
   });
@@ -2443,7 +2715,7 @@ function getMakeupQuota(period, empId){
     const lim=getLim(period,emp.dept,d);
     if(lim<=0) return;
     const apps=getApps(pid,emp.dept,d);
-    const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===emp.dept&&h.date===d);
+    const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===emp.dept&&h.date===d&&!h.type);
     if(!hadLottery&&apps.some(a=>a.empId===empId)&&apps.length<=lim) won++;
   });
   return Math.max(0, quota - won);
@@ -2507,7 +2779,7 @@ function buildStatusMap(period){
     if(!map[a.empId]) map[a.empId]={};
     a.dates.forEach(d=>{ if(!map[a.empId][d]) map[a.empId][d]='pending'; });
   });
-  data.history.filter(h=>(h.periodId===pid)||(h.periodName===period.name&&h.periodStart===period.start)).forEach(h=>{
+  data.history.filter(h=>((h.periodId===pid)||(h.periodName===period.name&&h.periodStart===period.start))&&!h.type).forEach(h=>{
     h.winners.forEach(w=>{ const emp=data.employees.find(e=>e.name===w.name&&e.dept===w.dept); if(emp){if(!map[emp.id])map[emp.id]={};map[emp.id][h.date]='lottery';} });
     h.losers.forEach(w=>{ const emp=data.employees.find(e=>e.name===w.name&&e.dept===w.dept); if(emp){if(!map[emp.id])map[emp.id]={};if(!map[emp.id][h.date]||map[emp.id][h.date]==='pending')map[emp.id][h.date]='loser';} });
   });
@@ -2515,7 +2787,7 @@ function buildStatusMap(period){
     data.departments.forEach(shift=>{
       const lim=getLim(period,shift,d); if(lim===0)return;
       const apps=getApps(pid,shift,d);
-      const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===d);
+      const hadLottery=data.history.some(h=>(h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))&&h.shift===shift&&h.date===d&&!h.type);
       if(!hadLottery&&apps.length>0&&apps.length<=lim) apps.forEach(a=>{if(!map[a.empId])map[a.empId]={};if(map[a.empId][d]==='pending')map[a.empId][d]='direct';});
     });
   });
@@ -2755,12 +3027,16 @@ function renderAccounts(){
         </div>
       </div>`).join('');
   }
+  const pinStore=document.getElementById('pin-store-select');
+  if(pinStore) pinStore.value='';
+  const pinEmpField=document.getElementById('pin-emp-field');
+  if(pinEmpField) pinEmpField.style.display='none';
   const sel=document.getElementById('pin-emp-select');
-  const cur=sel.value;
   sel.innerHTML='<option value="">-- 選擇員工 --</option>';
-  data.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o);});
-  if(cur)sel.value=cur;
-  onPinEmpChange();
+  const pinCurrent=document.getElementById('pin-current');
+  if(pinCurrent) pinCurrent.textContent='';
+  const pinInput=document.getElementById('pin-set-input');
+  if(pinInput) pinInput.value='';
 }
 function addAdmin(){
   const user=document.getElementById('new-admin-user').value.trim();
@@ -2800,6 +3076,20 @@ function removeAdmin(id){
     data.admins=(data.admins||[]).filter(a=>a.id!==id);
     save();renderAccounts();toast('✓ 已刪除');
   });
+}
+function onPinStoreChange(){
+  const store=document.getElementById('pin-store-select').value;
+  const empField=document.getElementById('pin-emp-field');
+  const sel=document.getElementById('pin-emp-select');
+  const info=document.getElementById('pin-current');
+  const input=document.getElementById('pin-set-input');
+  if(info) info.textContent='';
+  if(input) input.value='';
+  if(!store){ empField.style.display='none'; sel.innerHTML='<option value="">-- 選擇員工 --</option>'; return; }
+  const emps=data.employees.filter(e=>(e.store||'竹北店')===store);
+  sel.innerHTML='<option value="">-- 選擇員工 --</option>';
+  emps.forEach(e=>{ const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o); });
+  empField.style.display='block';
 }
 function onPinEmpChange(){
   const eid=parseInt(document.getElementById('pin-emp-select').value);
@@ -2943,7 +3233,7 @@ function renderDailyLimitTable(){
   const el=document.getElementById('daily-limit-table');
   if(!el)return;
   const stores=['竹北店','關新店'];
-  const genders=[{v:'male',l:'男'},{v:'female',l:'女'}];
+  const genders=[{v:'male',l:'足師'},{v:'female',l:'體師'}];
   const dayTypes=[{v:'weekday',l:'平日'},{v:'holiday',l:'假日'}];
   const limits=data.dailyLimits||{};
   const thStyle='text-align:center;padding:7px 10px;min-width:80px;border-bottom:1px solid var(--border);font-size:.6rem;';
@@ -3026,6 +3316,16 @@ function isOverDailyLimit(empId,date,includePending=false){
     }).length;
   }
   return count>lim;
+}
+function hasScheduledLeave(empId, date){
+  // 檢查該員工在該日是否已有排假（抽籤中籤或直接錄取）
+  const emp=data.employees.find(e=>e.id===empId);
+  if(!emp)return false;
+  const period=data.periods.find(p=>p.start<=date&&date<=p.end);
+  if(!period)return false;
+  const statusMap=buildStatusMap(period);
+  const st=(statusMap[empId]||{})[date];
+  return st==='lottery'||st==='direct';
 }
 function refreshElSelects(){
   const fs=document.getElementById('el-filter-shift');
