@@ -204,35 +204,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 .self-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
 .self-panel{display:none;}.self-panel.active{display:block;}
 </style>
-<script>
-(function(){
-  function tryLoad(urls, idx){
-    if(idx>=urls.length)return;
-    var s=document.createElement('script');
-    s.src=urls[idx];
-    s.onload=function(){
-      // 偵測此版本是否支援 cell 樣式（.s 屬性）
-      try{
-        var wb=XLSX.utils.book_new();
-        var ws=XLSX.utils.aoa_to_sheet([['test']]);
-        var addr=XLSX.utils.encode_cell({r:0,c:0});
-        ws[addr].s={font:{sz:12}};
-        XLSX.utils.book_append_sheet(wb,ws,'t');
-        // 用版本號判斷是否支援樣式（0.20+ 支援）
-        var ver=XLSX.version||'0';
-        var major=parseInt(ver.split('.')[1]||0);
-        window._xlsxStyleSupport=major>=20;
-      }catch(e){window._xlsxStyleSupport=false;}
-    };
-    s.onerror=function(){tryLoad(urls,idx+1);};
-    document.head.appendChild(s);
-  }
-  tryLoad([
-    'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
-  ], 0);
-})();
-</script>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -331,6 +303,39 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div>
 </div>
 
+<!-- ══ EDIT EMPLOYEE MODAL ══ -->
+<div id="edit-emp-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px;width:90%;max-width:400px;">
+    <div style="font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;margin-bottom:18px;">編輯員工</div>
+    <div class="field"><label>姓名</label><input type="text" id="edit-emp-name" style="width:100%;"></div>
+    <div class="field"><label>店別</label>
+      <select id="edit-emp-store" style="width:100%;">
+        <option value="竹北店">竹北店</option>
+        <option value="關新店">關新店</option>
+      </select>
+    </div>
+    <div class="field"><label>班別</label><select id="edit-emp-dept" style="width:100%;"></select></div>
+    <div class="field"><label>職稱</label>
+      <div style="display:flex;gap:16px;padding:6px 0;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="edit-emp-gender" value="male"> 足師</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="edit-emp-gender" value="female"> 體師</label>
+      </div>
+    </div>
+    <div class="field"><label>制度</label>
+      <select id="edit-emp-type" style="width:100%;">
+        <option value="直">直</option>
+        <option value="保">保</option>
+        <option value="兼">兼</option>
+        <option value="實">實</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeEditEmployee()">取消</button>
+      <button class="btn btn-primary" onclick="saveEditEmployee()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ HEADER ══ -->
 <div class="header" id="main-header" style="display:none;">
   <div class="header-icon">🎴</div>
@@ -384,6 +389,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;"><input type="radio" name="emp-gender" value="female"> 體師</label>
             </div>
           </div>
+          <div class="field"><label>制度</label>
+            <select id="emp-type" style="width:100%;">
+              <option value="直">直</option>
+              <option value="保">保</option>
+              <option value="兼">兼</option>
+              <option value="實">實</option>
+            </select>
+          </div>
           <button class="btn btn-primary" onclick="addEmployee()">新增員工</button>
         </div>
         <div class="card">
@@ -412,7 +425,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="btn btn-ghost" style="padding:4px 10px;font-size:.6rem;" onclick="clearAllEmployees()">清除全部</button>
           </div>
         </div>
-        <table><thead><tr><th>#</th><th>姓名</th><th>職稱</th><th>店別</th><th>班別</th><th>操作</th></tr></thead>
+        <table><thead><tr><th>#</th><th>姓名</th><th>職稱</th><th>店別</th><th>班別</th><th>制度</th><th>操作</th></tr></thead>
         <tbody id="emp-table"><tr><td colspan="4" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr></tbody></table>
       </div>
     </div>
@@ -1420,10 +1433,11 @@ function addEmployee(){
   const dept=document.getElementById('emp-dept').value;
   const store=document.getElementById('emp-store').value||'竹北店';
   const gender=document.querySelector('input[name="emp-gender"]:checked')?.value||'male';
+  const empType=document.getElementById('emp-type').value||'直';
   if(!name)return toast('請輸入姓名',true);
   if(!dept)return toast('請選擇班別',true);
   if(data.employees.find(e=>e.name===name&&e.dept===dept))return toast('同班別已有此員工',true);
-  data.employees.push({id:Date.now(),name,dept,store,gender});
+  data.employees.push({id:Date.now(),name,dept,store,gender,empType});
   save();renderEmployees();updateStats();document.getElementById('emp-name').value='';toast('✓ 員工已新增');
 }
 function removeEmployee(id){
@@ -1431,25 +1445,65 @@ function removeEmployee(id){
   data.applications=data.applications.filter(a=>a.empId!==id);
   save();renderEmployees();updateStats();
 }
+let _editEmpId=null;
+function openEditEmployee(id){
+  const e=data.employees.find(x=>x.id===id);
+  if(!e)return;
+  _editEmpId=id;
+  document.getElementById('edit-emp-name').value=e.name;
+  document.getElementById('edit-emp-store').value=e.store||'竹北店';
+  // populate dept options
+  const ds=document.getElementById('edit-emp-dept');
+  ds.innerHTML=data.departments.map(d=>`<option value="${d}"${d===e.dept?' selected':''}>${d}</option>`).join('');
+  const gv=e.gender||'male';
+  document.querySelectorAll('input[name="edit-emp-gender"]').forEach(r=>r.checked=(r.value===gv));
+  document.getElementById('edit-emp-type').value=e.empType||'直';
+  document.getElementById('edit-emp-modal').style.display='flex';
+}
+function closeEditEmployee(){
+  _editEmpId=null;
+  document.getElementById('edit-emp-modal').style.display='none';
+}
+function saveEditEmployee(){
+  const e=data.employees.find(x=>x.id===_editEmpId);
+  if(!e)return;
+  const name=document.getElementById('edit-emp-name').value.trim();
+  if(!name)return toast('姓名不可為空',true);
+  const dept=document.getElementById('edit-emp-dept').value;
+  if(!dept)return toast('請選擇班別',true);
+  // check duplicate (exclude self)
+  if(data.employees.find(x=>x.id!==_editEmpId&&x.name===name&&x.dept===dept))
+    return toast('同班別已有此姓名',true);
+  e.name=name;
+  e.store=document.getElementById('edit-emp-store').value||'竹北店';
+  e.dept=dept;
+  e.gender=document.querySelector('input[name="edit-emp-gender"]:checked')?.value||'male';
+  e.empType=document.getElementById('edit-emp-type').value||'直';
+  save();renderEmployees();updateStats();closeEditEmployee();toast('✓ 員工資料已更新');
+}
+
 function clearAllEmployees(){
   if(!data.employees.length)return toast('名單已空',true);
   showModal('清除員工名單','確定要清除所有員工資料及其排假申請？',()=>{data.employees=[];data.applications=[];save();renderEmployees();updateStats();toast('✓ 已清除');});
 }
 function renderEmployees(){
   renderDeptOptions();
-  // 現有員工若無性別欄位，預設為男
-  data.employees.forEach(e=>{ if(!e.gender) e.gender='male'; if(!e.store) e.store='竹北店'; });
+  data.employees.forEach(e=>{ if(!e.gender) e.gender='male'; if(!e.store) e.store='竹北店'; if(!e.empType) e.empType='直'; });
   const filter=document.getElementById('filter-dept')?.value||'';
   const list=filter?data.employees.filter(e=>e.dept===filter):[...data.employees];
   const tb=document.getElementById('emp-table');
-  if(!list.length){tb.innerHTML='<tr><td colspan="6" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="7" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr>';return;}
   tb.innerHTML=list.map((e,i)=>`<tr>
     <td><span style="font-family:'Space Mono',monospace;font-size:.66rem;color:var(--text-dim)">${String(i+1).padStart(2,'0')}</span></td>
     <td>${e.name}</td>
     <td><span class="badge ${e.gender==='female'?'b-red':'b-blue'}" style="font-size:.6rem;">${e.gender==='female'?'體師':'足師'}</span></td>
     <td><span class="badge b-green" style="font-size:.6rem;">${e.store||'竹北店'}</span></td>
     <td><span class="badge b-yellow">${e.dept}</span></td>
-    <td><button class="btn btn-danger" style="padding:3px 10px;font-size:.6rem;" onclick="removeEmployee(${e.id})">移除</button></td>
+    <td><span class="badge b-gray" style="font-size:.6rem;">${e.empType||'直'}</span></td>
+    <td style="white-space:nowrap;">
+      <button class="btn btn-ghost" style="padding:3px 10px;font-size:.6rem;margin-right:4px;" onclick="openEditEmployee(${e.id})">編輯</button>
+      <button class="btn btn-danger" style="padding:3px 10px;font-size:.6rem;" onclick="removeEmployee(${e.id})">移除</button>
+    </td>
   </tr>`).join('');
 }
 function updateStats(){
@@ -2702,8 +2756,204 @@ function setSchView(v){
   renderSchedule();
 }
 
+// ── 純 OOXML 組裝工具（零依賴，瀏覽器原生 ZIP）──
+const _xlsx=(function(){
+  // --- pako deflate（內嵌 mini deflate，只用 store 模式確保相容）---
+  // 使用 DEFLATE store（level=0）：不壓縮但合法 zip，速度最快
+  function u8(s){
+    const b=new TextEncoder().encode(s); return b;
+  }
+  function crc32(buf){
+    let c=0xFFFFFFFF;
+    const t=new Uint32Array(256);
+    for(let i=0;i<256;i++){let v=i;for(let j=0;j<8;j++)v=v&1?(v>>>1)^0xEDB88320:(v>>>1);t[i]=v;}
+    for(let i=0;i<buf.length;i++)c=t[(c^buf[i])&0xFF]^(c>>>8);
+    return (c^0xFFFFFFFF)>>>0;
+  }
+  function le2(n){return [n&0xFF,(n>>8)&0xFF];}
+  function le4(n){return [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF];}
+  function concat(...arrs){
+    const len=arrs.reduce((s,a)=>s+a.length,0);
+    const out=new Uint8Array(len); let off=0;
+    arrs.forEach(a=>{out.set(a,off);off+=a.length;});
+    return out;
+  }
+  function zipEntry(name,data){
+    const nm=u8(name);
+    const hdr=new Uint8Array([
+      0x50,0x4B,0x03,0x04, // local file sig
+      0x14,0x00,           // version needed
+      0x00,0x00,           // flags
+      0x00,0x00,           // compression: store
+      0x00,0x00,0x00,0x00, // mod time/date (zero)
+      ...le4(crc32(data)),
+      ...le4(data.length),
+      ...le4(data.length),
+      ...le2(nm.length),
+      0x00,0x00            // extra len
+    ]);
+    return {nm,hdr,data};
+  }
+  function buildZip(entries){
+    const parts=[]; const central=[]; let off=0;
+    entries.forEach(({nm,hdr,data})=>{
+      parts.push(hdr,nm,data);
+      const crc=hdr.slice(14,18); const sz=hdr.slice(18,22);
+      const cd=new Uint8Array([
+        0x50,0x4B,0x01,0x02,
+        0x14,0x00,0x14,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        ...crc,...sz,...sz,
+        ...le2(nm.length),
+        0x00,0x00,           // extra len
+        0x00,0x00,           // comment len
+        0x00,0x00,           // disk start
+        0x00,0x00,           // internal attr
+        0x00,0x00,0x00,0x00, // external attr (4 bytes)
+        ...le4(off)
+      ]);
+      central.push(concat(cd,nm));
+      off+=hdr.length+nm.length+data.length;
+    });
+    const cBuf=concat(...central);
+    const eocd=new Uint8Array([
+      0x50,0x4B,0x05,0x06,
+      0x00,0x00,0x00,0x00,
+      ...le2(entries.length),...le2(entries.length),
+      ...le4(cBuf.length),...le4(off),
+      0x00,0x00
+    ]);
+    return concat(...parts,cBuf,eocd);
+  }
+  function xe(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  // 欄號（1-based）→ 欄字母，正確支援任意欄數
+  function colName(n){let s='';while(n>0){s=String.fromCharCode(64+(n%26||26))+s;n=Math.floor((n-1)/26);}return s;}
+
+  return {
+    write(sheetName, rows, merges, colWidths, holidayRows){
+      // ── styles.xml ──
+      // xf index: 0=base, 1=holiday
+      const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="2">
+ <font><sz val="12"/><name val="新細明體"/></font>
+ <font><sz val="12"/><name val="新細明體"/></font>
+</fonts>
+<fills count="3">
+ <fill><patternFill patternType="none"/></fill>
+ <fill><patternFill patternType="gray125"/></fill>
+ <fill><patternFill patternType="solid"><fgColor rgb="FFF4B183"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="2">
+ <border><left/><right/><top/><bottom/><diagonal/></border>
+ <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
+</borders>
+<cellStyleXfs count="1">
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+</cellStyleXfs>
+<cellXfs count="3">
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
+ <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+      // ── shared strings ──
+      const ssMap={}; const ssArr=[]; let ssCount=0;
+      function si(v){
+        const k=String(v);
+        if(ssMap[k]===undefined){ssMap[k]=ssArr.length;ssArr.push(k);}
+        ssCount++;
+        return ssMap[k];
+      }
+
+      // ── sheet data ──
+      const hSet=new Set(holidayRows); // 0-based row indices that are holidays
+      let sheetRows='';
+      rows.forEach((row,ri)=>{
+        const xf=hSet.has(ri)?2:1;
+        let cells='';
+        row.forEach((val,ci)=>{
+          const col=ci+1;
+          const addr=colName(col)+(ri+1);
+          if(typeof val==='number'){
+            cells+=`<c r="${addr}" t="n" s="${xf}"><v>${val}</v></c>`;
+          } else {
+            cells+=`<c r="${addr}" t="s" s="${xf}"><v>${si(val===null||val===undefined?'':val)}</v></c>`;
+          }
+        });
+        sheetRows+=`<row r="${ri+1}">${cells}</row>`;
+      });
+
+      // ── col widths ──
+      let colsXml='<cols>';
+      colWidths.forEach((w,i)=>{colsXml+=`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`;});
+      colsXml+='</cols>';
+
+      // ── merges ──
+      let mergeXml='';
+      if(merges.length){
+        const enc=m=>`${colName(m.sc)}${m.sr}:${colName(m.ec)}${m.er}`;
+        mergeXml=`<mergeCells count="${merges.length}">${merges.map(m=>`<mergeCell ref="${enc(m)}"/>`).join('')}</mergeCells>`;
+      }
+
+      const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+${colsXml}
+<sheetData>${sheetRows}</sheetData>
+${mergeXml}
+</worksheet>`;
+
+      const ssXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${ssCount}" uniqueCount="${ssArr.length}">
+${ssArr.map(s=>`<si><t xml:space="preserve">${xe(s)}</t></si>`).join('')}
+</sst>`;
+
+      const wbXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="${xe(sheetName)}" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`;
+
+      const wbRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+      const appRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+
+      const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+
+      const enc=s=>u8(s);
+      const entries=[
+        zipEntry('[Content_Types].xml',enc(ct)),
+        zipEntry('_rels/.rels',enc(appRels)),
+        zipEntry('xl/workbook.xml',enc(wbXml)),
+        zipEntry('xl/_rels/workbook.xml.rels',enc(wbRels)),
+        zipEntry('xl/worksheets/sheet1.xml',enc(sheetXml)),
+        zipEntry('xl/sharedStrings.xml',enc(ssXml)),
+        zipEntry('xl/styles.xml',enc(stylesXml)),
+      ];
+      return buildZip(entries);
+    }
+  };
+})();
+
 function exportScheduleExcel(){
-  if(typeof XLSX==='undefined')return toast('Excel 套件載入中，請稍後再試',true);
   const pid=parseInt(document.getElementById('sch-period').value);
   const period=data.periods.find(p=>p.id===pid);
   if(!period)return toast('請先選擇假期',true);
@@ -2716,7 +2966,6 @@ function exportScheduleExcel(){
   const statusMap=buildStatusMap(period);
   const WD=['日','一','二','三','四','五','六'];
   const ON_LEAVE=['lottery','direct','extra'];
-  const COLOR_HOLIDAY='FFF4B183';
 
   const rocY=parseInt(period.start.slice(0,4))-1911;
   const rocM=parseInt(period.start.slice(5,7));
@@ -2732,20 +2981,20 @@ function exportScheduleExcel(){
   const totalEmpCols=shiftEmps.reduce((s,x)=>s+x.emps.length,0);
   const statShifts=shiftEmps.map(x=>x.shift);
   const stSym=st=>(st==='lottery'||st==='direct')?'R':st==='extra'?'請':'';
-  const titleOf=emp=>emp.gender==='female'?'體師':'足師';
+  const titleOf=emp=>emp.empType||'直';
 
   // ── 建立資料列 ──
   const rows=[];
-  const r1=[title]; for(let i=1;i<totalEmpCols+1+statShifts.length;i++)r1.push(''); rows.push(r1);
+  const r1=[title]; for(let i=1;i<totalEmpCols+2+statShifts.length;i++)r1.push(''); rows.push(r1);
   const r2=['','']; shiftEmps.forEach(({shift,emps})=>{r2.push(shift);for(let i=1;i<emps.length;i++)r2.push('');}); r2.push('當日休假人數'); for(let i=1;i<statShifts.length;i++)r2.push(''); rows.push(r2);
-  const r3=['','']; shiftEmps.forEach(({emps})=>emps.forEach(emp=>r3.push(titleOf(emp)))); statShifts.forEach(sh=>r3.push(sh)); rows.push(r3);
+  const r3=['','']; shiftEmps.forEach(({emps})=>emps.forEach(emp=>r3.push(titleOf(emp)))); statShifts.forEach(sh=>r3.push(sh.charAt(0))); rows.push(r3);
   const r4=['星期','']; shiftEmps.forEach(({emps})=>emps.forEach(emp=>r4.push(emp.name))); statShifts.forEach(()=>r4.push('')); rows.push(r4);
 
-  const dateRowIsHoliday=[];
-  dates.forEach(d=>{
+  const holidayRowIdxs=[];
+  dates.forEach((d,di)=>{
     const dt=period.dateTypes||{};
     const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
-    dateRowIsHoliday.push(dayType==='holiday');
+    if(dayType==='holiday') holidayRowIdxs.push(4+di); // 0-based，只有假日填色
     const row=[parseInt(d.slice(8)), WD[new Date(d+'T00:00:00').getDay()]];
     shiftEmps.forEach(({emps})=>emps.forEach(emp=>row.push(stSym((statusMap[emp.id]||{})[d]))));
     statShifts.forEach(sh=>row.push(allEmps.filter(e=>e.dept===sh).filter(emp=>ON_LEAVE.includes((statusMap[emp.id]||{})[d])).length));
@@ -2755,70 +3004,32 @@ function exportScheduleExcel(){
   const fN=['','']; shiftEmps.forEach(({emps})=>emps.forEach(emp=>fN.push(emp.name))); statShifts.forEach(()=>fN.push('')); rows.push(fN);
   const fT=['','']; shiftEmps.forEach(({emps})=>emps.forEach(emp=>fT.push(titleOf(emp)))); statShifts.forEach(()=>fT.push('')); rows.push(fT);
 
-  const totalCols=totalEmpCols+2+statShifts.length;
-  const totalRows=rows.length;
+  const totalEmpColsPlus2=totalEmpCols+2;
 
-  // ── 建立 worksheet ──
-  const ws=XLSX.utils.aoa_to_sheet(rows);
+  // ── 欄寬 ──
+  const colWidths=[5.875,4.875];
+  shiftEmps.forEach(({emps})=>emps.forEach(()=>colWidths.push(4)));
+  statShifts.forEach(()=>colWidths.push(4));
 
-  // 欄寬
-  const cols=[{wch:5.875},{wch:4.875}];
-  shiftEmps.forEach(({emps})=>emps.forEach(()=>cols.push({wch:6.875})));
-  statShifts.forEach(()=>cols.push({wch:5.875}));
-  ws['!cols']=cols;
-
-  // 合併儲存格
+  // ── 合併儲存格（1-based sr/er/sc/ec）──
   const merges=[];
-  merges.push({s:{r:0,c:0},e:{r:0,c:totalEmpCols+1}});
-  let col=2;
+  merges.push({sr:1,er:1,sc:1,ec:totalEmpCols+2+statShifts.length});
+  let col=3;
   shiftEmps.forEach(({emps})=>{
-    if(emps.length>1)merges.push({s:{r:1,c:col},e:{r:1,c:col+emps.length-1}});
+    if(emps.length>1) merges.push({sr:2,er:2,sc:col,ec:col+emps.length-1});
     col+=emps.length;
   });
-  if(statShifts.length>1)merges.push({s:{r:1,c:col},e:{r:1,c:col+statShifts.length-1}});
-  ws['!merges']=merges;
+  if(statShifts.length>1) merges.push({sr:2,er:2,sc:col,ec:col+statShifts.length-1});
 
-  // ── 樣式（僅支援樣式的版本才套用）──
-  if(window._xlsxStyleSupport){
-    // 每次建立新物件避免共享參考問題
-    const mkBorder=()=>({
-      top:{style:'thin',color:{rgb:'FF000000'}},
-      bottom:{style:'thin',color:{rgb:'FF000000'}},
-      left:{style:'thin',color:{rgb:'FF000000'}},
-      right:{style:'thin',color:{rgb:'FF000000'}}
-    });
-    const mkBase=()=>({
-      font:{name:'新細明體',sz:12},
-      alignment:{horizontal:'center',vertical:'center'},
-      border:mkBorder()
-    });
-    const mkHoliday=()=>({
-      font:{name:'新細明體',sz:12},
-      alignment:{horizontal:'center',vertical:'center'},
-      border:mkBorder(),
-      fill:{patternType:'solid',fgColor:{rgb:COLOR_HOLIDAY},bgColor:{indexed:64}}
-    });
-
-    for(let r=0;r<totalRows;r++){
-      for(let c=0;c<totalCols;c++){
-        const addr=XLSX.utils.encode_cell({r,c});
-        if(!ws[addr]) ws[addr]={t:'s',v:''};
-        const isHoliday=r>=4&&(r-4)<dateRowIsHoliday.length&&c>=2&&dateRowIsHoliday[r-4];
-        ws[addr].s=isHoliday?mkHoliday():mkBase();
-      }
-    }
-  }
-
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'假表');
+  // ── 組裝並下載 ──
+  const buf=_xlsx.write('假表',rows,merges,colWidths,holidayRowIdxs);
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
   const ts=new Date().toISOString().slice(0,10);
-  // 診斷：確認樣式是否存在
-  const testAddr=XLSX.utils.encode_cell({r:4,c:2});
-  console.log('[XLSX診斷] 版本:',XLSX.version,'_xlsxStyleSupport:',window._xlsxStyleSupport);
-  console.log('[XLSX診斷] 測試cell樣式:',JSON.stringify(ws[testAddr]?.s));
-  console.log('[XLSX診斷] 測試cell值:',ws[testAddr]?.v);
-  XLSX.writeFile(wb,`假表_${period.name}_${ts}.xlsx`,{bookType:'xlsx',bookSST:false,type:'binary',cellStyles:true});
-  toast(`✓ Excel 已匯出${window._xlsxStyleSupport?'（含完整格式）':'（無格式，請於網頁版使用以取得完整格式）'}`);
+  a.href=url; a.download=`假表_${period.name}_${ts}.xlsx`; a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ Excel 已匯出（含完整格式）');
 }
 
 function onSchPeriodChange(){
