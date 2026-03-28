@@ -635,20 +635,20 @@ tr:hover td{background:rgba(255,255,255,.018);}
                   <option value="關新店">關新店</option>
                 </select>
               </div>
-              <div class="field" id="ll-emp-field" style="display:none;"><label>選擇員工</label>
-                <select id="ll-emp" onchange="onLLEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
+              <div class="field" id="ll-emp-field"><label>選擇員工</label>
+                <select id="ll-emp" onchange="onLLEmpChange()" style="width:100%;"><option value="">-- 請先選擇店別 --</option></select>
               </div>
               <div class="field"><label>長假開始日期</label>
-                <input type="date" id="ll-start">
+                <input type="date" id="ll-start" style="width:100%;">
               </div>
               <div class="field"><label>長假結束日期</label>
-                <input type="date" id="ll-end">
+                <input type="date" id="ll-end" style="width:100%;">
               </div>
               <div class="field"><label>原因（選填）</label>
-                <input type="text" id="ll-reason" placeholder="例：產假、病假">
+                <input type="text" id="ll-reason" placeholder="例：產假、病假" style="width:100%;">
               </div>
             </div>
-            <div>
+            <div style="display:flex;flex-direction:column;gap:0;justify-content:flex-start;">
               <div class="field">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.84rem;">
                   <input type="checkbox" id="ll-count-slot" style="width:auto;padding:0;accent-color:var(--accent);">
@@ -658,9 +658,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
               </div>
               <div class="field">
                 <label>該員工當月可排假天數上限</label>
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <input type="number" id="ll-custom-quota" min="0" placeholder="留空則使用全局設定" style="width:160px;">
-                  <span style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);">全局：<span id="ll-global-quota">8</span> 天</span>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <input type="number" id="ll-custom-quota" min="0" placeholder="留空則使用全局設定" style="flex:1;min-width:120px;">
+                  <span style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);white-space:nowrap;">全局：<span id="ll-global-quota">8</span> 天</span>
                 </div>
               </div>
             </div>
@@ -3734,25 +3734,18 @@ function getEmpQuota(empId){
 // ══ 長假管理 ══
 function onLLStoreChange(){
   const store=document.getElementById('ll-store').value;
-  const empField=document.getElementById('ll-emp-field');
   const sel=document.getElementById('ll-emp');
-  document.getElementById('ll-emp-info').innerHTML='請先選擇員工';
-  if(!store){empField.style.display='none';sel.innerHTML='<option value="">-- 選擇員工 --</option>';return;}
+  if(!store){sel.innerHTML='<option value="">-- 請先選擇店別 --</option>';return;}
   const emps=data.employees.filter(e=>(e.store||'竹北店')===store);
   sel.innerHTML='<option value="">-- 選擇員工 --</option>';
   emps.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o);});
-  empField.style.display='block';
 }
 function onLLEmpChange(){
   const eid=parseInt(document.getElementById('ll-emp').value);
   const emp=data.employees.find(e=>e.id===eid);
-  const info=document.getElementById('ll-emp-info');
   const cq=document.getElementById('ll-custom-quota');
-  if(!emp){info.innerHTML='請先選擇員工';cq.value='';return;}
-  const currentQuota=getEmpQuota(eid);
+  if(!emp){cq.value='';return;}
   const hasCustom=(data.empQuotas||{})[eid]!==undefined;
-  info.innerHTML=`<div style="font-weight:600;margin-bottom:6px;">${emp.name}（${emp.dept}）</div>
-    <div style="font-size:.8rem;color:var(--text-dim);">目前排假上限：<span style="font-family:'Space Mono',monospace;color:var(--accent);">${currentQuota} 天</span>${hasCustom?' <span style="color:var(--accent2);">[個別設定]</span>':' <span style="color:var(--text-dim);">[全局設定]</span>'}</div>`;
   cq.value=hasCustom?(data.empQuotas||{})[eid]:'';
 }
 function addLongLeave(){
