@@ -361,7 +361,6 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <button class="tab active" onclick="switchTab('employees')">👤 員工管理</button>
     <button class="tab" onclick="switchTab('periods')">📅 假期設定</button>
     <button class="tab" onclick="switchTab('applications')">✍️ 排假申請</button>
-    <button class="tab" onclick="switchTab('extraleave')">🏖️ 額外請假管理</button>
     <button class="tab" onclick="switchTab('lottery')">🎲 抽籤</button>
     <button class="tab" onclick="switchTab('schedule')">📊 假表</button>
     <button class="tab" onclick="switchTab('history')">📋 歷史紀錄</button>
@@ -498,75 +497,181 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
 
-    <!-- 排假申請（管理員） -->
+    <!-- 排假申請（管理員）→ 含三個子分頁 -->
     <div id="panel-applications" class="panel">
-      <div class="section-title">排假申請管理（每月上限 <span id="app-quota-display" style="color:var(--accent);">8</span> 天）</div>
-
-      <!-- 代排假 -->
-      <div class="card">
-        <div class="section-title">代為新增排假申請</div>
-        <div class="grid-2">
-          <div>
-            <div class="field"><label>選擇假期</label>
-              <select id="app-period" onchange="onAppPeriodChange()"><option value="">-- 選擇假期 --</option></select>
-            </div>
-            <div class="field"><label>選擇員工</label>
-              <select id="app-emp"><option value="">-- 先選假期 --</option></select>
-            </div>
-          </div>
-          <div class="field"><label>申請日期（可多選）</label>
-            <div id="app-dates-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:9px;min-height:80px;max-height:170px;overflow-y:auto;">
-              <div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>
-            </div>
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="addApplication()">新增排假申請</button>
+      <!-- 子分頁 tabs -->
+      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface2);padding:0 28px;">
+        <button class="apptab active" id="apptab-apply" onclick="switchAppTab('apply')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">📋 排假申請管理</button>
+        <button class="apptab" id="apptab-leave" onclick="switchAppTab('leave')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">🏖️ 請假申請管理</button>
+        <button class="apptab" id="apptab-longLeave" onclick="switchAppTab('longLeave')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">🗓️ 長假申請管理</button>
       </div>
 
-      <!-- 代請假（額外請假） -->
-      <div class="card">
-        <div class="section-title">代為新增額外請假</div>
-        <div class="grid-2">
-          <div>
-            <div class="field"><label>店別</label>
-              <select id="proxy-el-store" onchange="onProxyElStoreChange()" style="width:100%;">
-                <option value="">-- 選擇店別 --</option>
-                <option value="竹北店">竹北店</option>
-                <option value="關新店">關新店</option>
+      <!-- ① 排假申請管理 -->
+      <div id="apppanel-apply" class="main" style="padding-top:20px;">
+        <!-- 排假天數額度設定 -->
+        <div class="card">
+          <div class="section-title">排假天數額度設定</div>
+          <div class="field"><label>每人每月排假天數上限</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="number" id="monthly-quota" min="1" value="8" style="width:80px;">
+              <button class="btn btn-primary" style="white-space:nowrap;" onclick="saveQuota()">儲存設定</button>
+            </div>
+          </div>
+          <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);">目前設定：每人每月排假上限 <span id="quota-display" style="color:var(--accent);font-weight:700;">8</span> 天（不含額外請假）</div>
+        </div>
+        <!-- 代排假 -->
+        <div class="card">
+          <div class="section-title">代為新增排假申請</div>
+          <div class="grid-2">
+            <div>
+              <div class="field"><label>選擇假期</label>
+                <select id="app-period" onchange="onAppPeriodChange()"><option value="">-- 選擇假期 --</option></select>
+              </div>
+              <div class="field"><label>選擇員工</label>
+                <select id="app-emp"><option value="">-- 先選假期 --</option></select>
+              </div>
+            </div>
+            <div class="field"><label>申請日期（可多選）</label>
+              <div id="app-dates-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:9px;min-height:80px;max-height:170px;overflow-y:auto;">
+                <div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="addApplication()">新增排假申請</button>
+        </div>
+        <!-- 排假申請總覽 -->
+        <div class="card">
+          <div class="section-title" style="margin-bottom:10px;">排假申請總覽</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;">
+            <select id="app-filter-period" onchange="renderApplications()" style="flex:1;min-width:130px;padding:5px 9px;font-size:.72rem;"><option value="">全部假期</option></select>
+            <select id="app-filter-shift" onchange="renderApplications()" style="flex:1;min-width:100px;padding:5px 9px;font-size:.72rem;"><option value="">全部班別</option></select>
+            <select id="app-filter-gender" onchange="renderApplications()" style="flex:1;min-width:90px;padding:5px 9px;font-size:.72rem;">
+              <option value="">全部職稱</option>
+              <option value="male">足師</option>
+              <option value="female">體師</option>
+            </select>
+          </div>
+          <div id="app-overview"></div>
+        </div>
+      </div>
+
+      <!-- ② 請假申請管理 -->
+      <div id="apppanel-leave" class="main" style="padding-top:20px;display:none;">
+        <!-- 本月統計 -->
+        <div class="card">
+          <div class="section-title" style="margin-bottom:13px;">本月統計</div>
+          <div class="grid-2">
+            <div class="stat-box"><div class="stat-num" id="stat-el-pending">0</div><div class="stat-label">待審核</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-el-approved">0</div><div class="stat-label">已核准</div></div>
+          </div>
+        </div>
+        <!-- 代為新增額外請假 -->
+        <div class="card">
+          <div class="section-title">代為新增額外請假</div>
+          <div class="grid-2">
+            <div>
+              <div class="field"><label>店別</label>
+                <select id="proxy-el-store" onchange="onProxyElStoreChange()" style="width:100%;">
+                  <option value="">-- 選擇店別 --</option>
+                  <option value="竹北店">竹北店</option>
+                  <option value="關新店">關新店</option>
+                </select>
+              </div>
+              <div class="field" id="proxy-el-emp-field" style="display:none;"><label>選擇員工</label>
+                <select id="proxy-el-emp" onchange="onProxyElEmpChange()"><option value="">-- 選擇員工 --</option></select>
+              </div>
+              <div class="field"><label>請假日期</label>
+                <input type="date" id="proxy-el-date">
+              </div>
+              <div class="field"><label>請假原因（選填）</label>
+                <input type="text" id="proxy-el-reason" placeholder="例：家庭事由">
+              </div>
+            </div>
+            <div>
+              <div id="proxy-el-quota-info" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.82rem;color:var(--text-dim);">
+                請先選擇員工
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="addProxyExtraLeave()">新增額外請假</button>
+        </div>
+        <!-- 每日未出勤上限設定 -->
+        <div class="card">
+          <div class="section-title">每日未出勤上限設定</div>
+          <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">超過此上限（排假＋額外請假）的申請仍可核准，但會顯示「當日超休，須出示證明」警示。留空表示不限制。</div>
+          <div id="daily-limit-table" style="overflow-x:auto;"></div>
+          <button class="btn btn-primary" style="margin-top:12px;font-size:.7rem;padding:7px 16px;" onclick="saveDailyLimits()">儲存上限設定</button>
+        </div>
+        <!-- 請假申請列表 -->
+        <div class="card">
+          <div class="flex-between">
+            <div class="section-title" style="margin-bottom:0">請假申請列表</div>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;">
+              <select id="el-filter-shift" onchange="renderExtraLeave()" style="width:110px;padding:5px 9px;font-size:.72rem;"><option value="">全部班別</option></select>
+              <select id="el-filter-status" onchange="renderExtraLeave()" style="width:100px;padding:5px 9px;font-size:.72rem;">
+                <option value="">全部狀態</option>
+                <option value="pending">待審核</option>
+                <option value="approved">已核准</option>
+                <option value="rejected">已拒絕</option>
               </select>
-            </div>
-            <div class="field" id="proxy-el-emp-field" style="display:none;"><label>選擇員工</label>
-              <select id="proxy-el-emp" onchange="onProxyElEmpChange()"><option value="">-- 選擇員工 --</option></select>
-            </div>
-            <div class="field"><label>請假日期</label>
-              <input type="date" id="proxy-el-date">
-            </div>
-            <div class="field"><label>請假原因（選填）</label>
-              <input type="text" id="proxy-el-reason" placeholder="例：家庭事由">
+              <input type="month" id="el-filter-month" onchange="renderExtraLeave()" style="width:130px;padding:5px 9px;font-size:.72rem;">
             </div>
           </div>
-          <div>
-            <div id="proxy-el-quota-info" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.82rem;color:var(--text-dim);">
-              請先選擇員工
-            </div>
-          </div>
+          <div id="el-list"></div>
         </div>
-        <button class="btn btn-primary" onclick="addProxyExtraLeave()">新增額外請假</button>
       </div>
 
-      <!-- 申請總覽 -->
-      <div class="card">
-        <div class="section-title" style="margin-bottom:10px;">排假申請總覽</div>
-        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;">
-          <select id="app-filter-period" onchange="renderApplications()" style="flex:1;min-width:130px;padding:5px 9px;font-size:.72rem;"><option value="">全部假期</option></select>
-          <select id="app-filter-shift" onchange="renderApplications()" style="flex:1;min-width:100px;padding:5px 9px;font-size:.72rem;"><option value="">全部班別</option></select>
-          <select id="app-filter-gender" onchange="renderApplications()" style="flex:1;min-width:90px;padding:5px 9px;font-size:.72rem;">
-            <option value="">全部職稱</option>
-            <option value="male">足師</option>
-            <option value="female">體師</option>
-          </select>
+      <!-- ③ 長假申請管理 -->
+      <div id="apppanel-longLeave" class="main" style="padding-top:20px;display:none;">
+        <div class="card">
+          <div class="section-title">代為新增長假</div>
+          <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">長假期間每日自動計入，可設定是否佔用班別休假名額及個別員工排假天數。</div>
+          <div class="grid-2">
+            <div>
+              <div class="field"><label>店別</label>
+                <select id="ll-store" onchange="onLLStoreChange()" style="width:100%;">
+                  <option value="">-- 選擇店別 --</option>
+                  <option value="竹北店">竹北店</option>
+                  <option value="關新店">關新店</option>
+                </select>
+              </div>
+              <div class="field" id="ll-emp-field" style="display:none;"><label>選擇員工</label>
+                <select id="ll-emp" onchange="onLLEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
+              </div>
+              <div class="field"><label>長假開始日期</label>
+                <input type="date" id="ll-start">
+              </div>
+              <div class="field"><label>長假結束日期</label>
+                <input type="date" id="ll-end">
+              </div>
+              <div class="field"><label>原因（選填）</label>
+                <input type="text" id="ll-reason" placeholder="例：產假、病假">
+              </div>
+            </div>
+            <div>
+              <div id="ll-emp-info" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.82rem;color:var(--text-dim);margin-bottom:12px;">請先選擇員工</div>
+              <div class="field">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.84rem;">
+                  <input type="checkbox" id="ll-count-slot" style="width:auto;padding:0;accent-color:var(--accent);">
+                  占用班別休假名額
+                </label>
+                <div style="font-family:'Space Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:4px;">勾選後長假期間每日計入班別休假人數上限</div>
+              </div>
+              <div class="field">
+                <label>該員工當月可排假天數上限</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="number" id="ll-custom-quota" min="0" placeholder="留空則使用全局設定" style="width:160px;">
+                  <span style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);">全局：<span id="ll-global-quota">8</span> 天</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="addLongLeave()">新增長假</button>
         </div>
-        <div id="app-overview"></div>
+        <div class="card">
+          <div class="section-title">長假紀錄</div>
+          <div id="ll-list"></div>
+        </div>
       </div>
     </div>
 
@@ -640,101 +745,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
     </div>
 
     <!-- 額外請假 -->
-    <div id="panel-extraleave" class="panel">
-      <div class="section-title">額外請假管理（排假8天額度以外）</div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="section-title">排假天數額度設定</div>
-          <div class="field"><label>每人每月排假天數上限</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="number" id="monthly-quota" min="1" value="8" style="width:80px;">
-              <button class="btn btn-primary" style="white-space:nowrap;" onclick="saveQuota()">儲存設定</button>
-            </div>
-          </div>
-          <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);">目前設定：每人每月排假上限 <span id="quota-display" style="color:var(--accent);font-weight:700;">8</span> 天（不含額外請假）</div>
-        </div>
-        <div class="card">
-          <div class="section-title" style="margin-bottom:13px;">本月統計</div>
-          <div class="grid-2">
-            <div class="stat-box"><div class="stat-num" id="stat-el-pending">0</div><div class="stat-label">待審核</div></div>
-            <div class="stat-box"><div class="stat-num" id="stat-el-approved">0</div><div class="stat-label">已核准</div></div>
-          </div>
-        </div>
-      </div>
-      <!-- 長假管理 -->
-      <div class="card">
-        <div class="section-title">代為新增長假</div>
-        <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">長假期間每日自動計入，可設定是否佔用班別休假名額及個別員工排假天數。</div>
-        <div class="grid-2">
-          <div>
-            <div class="field"><label>店別</label>
-              <select id="ll-store" onchange="onLLStoreChange()" style="width:100%;">
-                <option value="">-- 選擇店別 --</option>
-                <option value="竹北店">竹北店</option>
-                <option value="關新店">關新店</option>
-              </select>
-            </div>
-            <div class="field" id="ll-emp-field" style="display:none;"><label>選擇員工</label>
-              <select id="ll-emp" onchange="onLLEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
-            </div>
-            <div class="field"><label>長假開始日期</label>
-              <input type="date" id="ll-start">
-            </div>
-            <div class="field"><label>長假結束日期</label>
-              <input type="date" id="ll-end">
-            </div>
-            <div class="field"><label>原因（選填）</label>
-              <input type="text" id="ll-reason" placeholder="例：產假、病假">
-            </div>
-          </div>
-          <div>
-            <div id="ll-emp-info" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.82rem;color:var(--text-dim);margin-bottom:12px;">請先選擇員工</div>
-            <div class="field">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.84rem;">
-                <input type="checkbox" id="ll-count-slot" style="width:auto;padding:0;accent-color:var(--accent);">
-                占用班別休假名額
-              </label>
-              <div style="font-family:'Space Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:4px;">勾選後長假期間每日計入班別休假人數上限</div>
-            </div>
-            <div class="field">
-              <label>該員工當月可排假天數上限</label>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="number" id="ll-custom-quota" min="0" placeholder="留空則使用全局設定" style="width:160px;">
-                <span style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);">全局：<span id="ll-global-quota">8</span> 天</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="addLongLeave()">新增長假</button>
-      </div>
-      <!-- 長假列表 -->
-      <div class="card">
-        <div class="section-title">長假紀錄</div>
-        <div id="ll-list"></div>
-      </div>
-      <div class="card">
-        <div class="section-title">每日未出勤上限設定</div>
-        <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:12px;">超過此上限（排假＋額外請假）的申請仍可核准，但會顯示「當日超休，須出示證明」警示。留空表示不限制。</div>
-        <div id="daily-limit-table" style="overflow-x:auto;"></div>
-        <button class="btn btn-primary" style="margin-top:12px;font-size:.7rem;padding:7px 16px;" onclick="saveDailyLimits()">儲存上限設定</button>
-      </div>
-      <div class="card">
-        <div class="flex-between">
-          <div class="section-title" style="margin-bottom:0">請假申請列表</div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap;">
-            <select id="el-filter-shift" onchange="renderExtraLeave()" style="width:110px;padding:5px 9px;font-size:.72rem;"><option value="">全部班別</option></select>
-            <select id="el-filter-status" onchange="renderExtraLeave()" style="width:100px;padding:5px 9px;font-size:.72rem;">
-              <option value="">全部狀態</option>
-              <option value="pending">待審核</option>
-              <option value="approved">已核准</option>
-              <option value="rejected">已拒絕</option>
-            </select>
-            <input type="month" id="el-filter-month" onchange="renderExtraLeave()" style="width:130px;padding:5px 9px;font-size:.72rem;">
-          </div>
-        </div>
-        <div id="el-list"></div>
-      </div>
-    </div>
+
 
     <!-- 假表 -->
     <div id="panel-schedule" class="panel">
@@ -1076,7 +1087,7 @@ function refreshCurrentTab(){
   const active=document.querySelector('.panel.active');
   if(!active) return;
   const id=active.id.replace('panel-','');
-  if(['employees','periods','applications','lottery','extraleave','schedule','history'].includes(id)) switchTab(id);
+  if(['employees','periods','applications','lottery','schedule','history'].includes(id)) switchTab(id);
 }
 
 // ══ UTILS ══
@@ -1365,15 +1376,15 @@ function setMode(m){
 
 // ══ TABS ══
 function switchTab(name){
-  const ns=['employees','periods','applications','lottery','extraleave','schedule','history','accounts'];
+  const ns=['employees','periods','applications','lottery','schedule','history','accounts'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',ns[i]===name));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='employees'){renderDeptOptions();renderDeptList();renderEmployees();updateStats();}
   if(name==='periods'){renderPeriods();renderShiftDefaults();}
-  if(name==='applications'){refreshAppSelects();renderApplications();}
+  if(name==='applications'){refreshAppSelects();renderApplications();refreshElSelects();renderExtraLeave();renderLongLeaves();renderDailyLimitTable();}
   if(name==='lottery'){refreshLotterySelects();resetLottery();}
-  if(name==='extraleave'){refreshElSelects();renderExtraLeave();}
+
   if(name==='schedule'){initSchedule();}
   if(name==='history')renderHistory();
   if(name==='accounts')renderAccounts();
@@ -1506,6 +1517,21 @@ function _ensureEmpOrder(){
     [...data.employees].sort((a,b)=>_empDefaultOrder(a)-_empDefaultOrder(b))
       .forEach((e,i)=>{e.order=i;});
   }
+}
+function switchAppTab(name){
+  ['apply','leave','longLeave'].forEach(t=>{
+    const btn=document.getElementById('apptab-'+t);
+    const isActive=t===name;
+    btn.classList.toggle('active',isActive);
+    btn.style.color=isActive?'var(--accent)':'';
+    btn.style.borderBottomColor=isActive?'var(--accent)':'';
+    document.getElementById('apppanel-'+t).style.display=isActive?'block':'none';
+  });
+  if(name==='apply'){
+    updateElStats();
+  }
+  if(name==='leave'){refreshElSelects();renderExtraLeave();renderDailyLimitTable();}
+  if(name==='longLeave'){renderLongLeaves();}
 }
 function renderEmployees(){
   renderDeptOptions();
@@ -2639,6 +2665,16 @@ function getUsedDays(empId, monthKey){
   return (data.extraLeaves||[]).filter(l=>l.empId===empId&&getMonthKey(l.date)===monthKey&&l.status!=='rejected').length;
 }
 
+function updateElStats(){
+  const now=new Date();
+  const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const leaves=data.extraLeaves||[];
+  const ml=leaves.filter(l=>{try{return l.date.slice(0,7)===thisMonth;}catch(e){return false;}});
+  const pe=document.getElementById('stat-el-pending');
+  const ae=document.getElementById('stat-el-approved');
+  if(pe)pe.textContent=ml.filter(l=>l.status==='pending').length;
+  if(ae)ae.textContent=ml.filter(l=>l.status==='approved').length;
+}
 function renderExtraLeave(){
   const filterShift=document.getElementById('el-filter-shift')?.value||'';
   const filterStatus=document.getElementById('el-filter-status')?.value||'';
@@ -2651,12 +2687,7 @@ function renderExtraLeave(){
   if(filterMonth) list=list.filter(l=>getMonthKey(l.date)===filterMonth);
   list=[...list].sort((a,b)=>b.appliedAt.localeCompare(a.appliedAt));
 
-  // update stats
-  const now=new Date();
-  const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const thisMonthLeaves=leaves.filter(l=>getMonthKey(l.date)===thisMonth);
-  document.getElementById('stat-el-pending').textContent=thisMonthLeaves.filter(l=>l.status==='pending').length;
-  document.getElementById('stat-el-approved').textContent=thisMonthLeaves.filter(l=>l.status==='approved').length;
+  updateElStats();
 
   if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">🏖️</div>尚無請假申請</div>';return;}
   el.innerHTML=`<table><thead><tr><th>員工</th><th>班別</th><th>日期</th><th>原因</th><th>狀態</th><th>操作</th></tr></thead><tbody>`+
@@ -3662,7 +3693,7 @@ function showPasteImport(){
       if(document.getElementById('panel-applications').classList.contains('active')){refreshAppSelects();renderApplications();}
       if(document.getElementById('panel-schedule').classList.contains('active'))initSchedule();
       if(document.getElementById('panel-history').classList.contains('active'))renderHistory();
-      if(document.getElementById('panel-extraleave').classList.contains('active')){refreshElSelects();renderExtraLeave();}
+      if(document.getElementById('panel-applications').classList.contains('active')){refreshElSelects();renderExtraLeave();}
       toast('✓ 資料已成功匯入');
     }catch(e){err.textContent='無法解析資料，格式有誤';err.style.display='block';return false;}
   };
@@ -3685,7 +3716,7 @@ function importData(event){
         if(document.getElementById('panel-applications').classList.contains('active')){refreshAppSelects();renderApplications();}
         if(document.getElementById('panel-schedule').classList.contains('active'))initSchedule();
         if(document.getElementById('panel-history').classList.contains('active'))renderHistory();
-        if(document.getElementById('panel-extraleave').classList.contains('active')){refreshElSelects();renderExtraLeave();}
+        if(document.getElementById('panel-applications').classList.contains('active')){refreshElSelects();renderExtraLeave();}
         toast('✓ 資料已成功匯入');
       });
     }catch(err){
