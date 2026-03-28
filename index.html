@@ -261,8 +261,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <!-- 一般登入（已設定 PIN）-->
       <div id="login-emp-normal" style="display:none;">
         <div class="field" style="margin-bottom:10px;">
-          <label>PIN 碼</label>
-          <input type="password" id="login-emp-pin" placeholder="輸入 PIN 碼" style="width:100%;"
+          <label>密碼</label>
+          <input type="password" id="login-emp-pin" placeholder="輸入 密碼" style="width:100%;"
             onkeydown="if(event.key==='Enter')loginAsEmployee()">
         </div>
       </div>
@@ -270,15 +270,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <!-- 首次設定 PIN -->
       <div id="login-emp-setup" style="display:none;">
         <div style="background:rgba(74,232,122,.08);border:1px solid rgba(74,232,122,.2);border-radius:var(--radius);padding:10px 13px;margin-bottom:12px;font-size:.78rem;color:var(--green);">
-          👋 首次登入，請設定您的 PIN 碼
+          👋 首次登入，請設定您的 密碼
         </div>
         <div class="field" style="margin-bottom:10px;">
-          <label>設定 PIN 碼</label>
-          <input type="password" id="login-emp-pin-new" placeholder="自訂 PIN 碼" style="width:100%;"
+          <label>設定 密碼</label>
+          <input type="password" id="login-emp-pin-new" placeholder="自訂 密碼" style="width:100%;"
             onkeydown="if(event.key==='Enter')document.getElementById('login-emp-pin-confirm').focus()">
         </div>
         <div class="field" style="margin-bottom:10px;">
-          <label>確認 PIN 碼</label>
+          <label>確認 密碼</label>
           <input type="password" id="login-emp-pin-confirm" placeholder="再次輸入" style="width:100%;"
             onkeydown="if(event.key==='Enter')loginAsEmployee()">
         </div>
@@ -361,8 +361,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <button class="tab active" onclick="switchTab('employees')">👤 員工管理</button>
     <button class="tab" onclick="switchTab('periods')">📅 假期設定</button>
     <button class="tab" onclick="switchTab('applications')">✍️ 排假申請</button>
-    <button class="tab" onclick="switchTab('lottery')">🎲 抽籤</button>
     <button class="tab" onclick="switchTab('extraleave')">🏖️ 額外請假管理</button>
+    <button class="tab" onclick="switchTab('lottery')">🎲 抽籤</button>
     <button class="tab" onclick="switchTab('schedule')">📊 假表</button>
     <button class="tab" onclick="switchTab('history')">📋 歷史紀錄</button>
     <button class="tab" id="tab-accounts" style="display:none;" onclick="switchTab('accounts')">🔑 帳號管理</button>
@@ -425,7 +425,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="btn btn-ghost" style="padding:4px 10px;font-size:.6rem;" onclick="clearAllEmployees()">清除全部</button>
           </div>
         </div>
-        <table><thead><tr><th>#</th><th>姓名</th><th>職稱</th><th>店別</th><th>班別</th><th>制度</th><th>操作</th></tr></thead>
+        <table><thead><tr><th></th><th>#</th><th>姓名</th><th>職稱</th><th>店別</th><th>班別</th><th>制度</th><th>操作</th></tr></thead>
         <tbody id="emp-table"><tr><td colspan="4" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr></tbody></table>
       </div>
     </div>
@@ -804,7 +804,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
         <!-- 員工 PIN 管理 -->
         <div class="card">
-          <div class="section-title">員工 PIN 碼管理</div>
+          <div class="section-title">員工 密碼管理</div>
           <div class="field"><label>店別</label>
             <select id="pin-store-select" onchange="onPinStoreChange()" style="width:100%;">
               <option value="">-- 選擇店別 --</option>
@@ -816,11 +816,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <select id="pin-emp-select" onchange="onPinEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
           </div>
           <div id="pin-current" style="font-size:.78rem;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);"></div>
-          <div class="field" style="margin-bottom:10px;"><label>設定 PIN 碼</label>
-            <input type="text" id="pin-set-input" placeholder="輸入新 PIN 碼" style="width:100%;">
+          <div class="field" style="margin-bottom:10px;"><label>設定 密碼</label>
+            <input type="text" id="pin-set-input" placeholder="輸入新 密碼" style="width:100%;">
           </div>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" style="flex:1;" onclick="setEmpPin()">設定 PIN</button>
+            <button class="btn btn-primary" style="flex:1;" onclick="setEmpPin()">設定密碼</button>
             <button class="btn btn-danger" style="flex:1;" onclick="resetEmpPin()">重置（清除）</button>
           </div>
         </div>
@@ -908,8 +908,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
   <div id="self-panel-schedule" class="self-panel">
     <div class="main" style="max-width:1150px;">
       <div class="section-title" style="margin-top:8px;">📊 已發布假表</div>
+      <div class="field" style="max-width:320px;margin-bottom:16px;">
+        <label>選擇假表</label>
+        <select id="self-schedule-select" onchange="onSelfScheduleSelect()" style="width:100%;">
+          <option value="">-- 請選擇 --</option>
+        </select>
+      </div>
       <div id="self-schedule-content">
-        <div class="empty"><div class="empty-icon">📊</div>目前尚無已發布的假表</div>
+        <div class="empty"><div class="empty-icon">📊</div>請從上方選擇要查看的假表</div>
       </div>
     </div>
   </div><!-- /self-panel-schedule -->
@@ -1150,7 +1156,7 @@ function onLoginEmpChange(){
     normalDiv.style.display='none';setupDiv.style.display='block';
     document.getElementById('login-emp-pin-new').value='';
     document.getElementById('login-emp-pin-confirm').value='';
-    document.getElementById('login-emp-btn').textContent='設定 PIN 並登入';
+    document.getElementById('login-emp-btn').textContent='設定密碼並登入';
   }
 }
 
@@ -1186,26 +1192,26 @@ function loginAsEmployee(){
     // 首次設定 PIN
     const newPin=document.getElementById('login-emp-pin-new').value;
     const confirmPin=document.getElementById('login-emp-pin-confirm').value;
-    if(!newPin){errEl.textContent='請輸入 PIN 碼';errEl.style.display='block';return;}
-    if(newPin.length<2){errEl.textContent='PIN 碼至少需要 2 個字元';errEl.style.display='block';return;}
-    if(newPin!==confirmPin){errEl.textContent='兩次輸入的 PIN 碼不一致';errEl.style.display='block';return;}
+    if(!newPin){errEl.textContent='請輸入 密碼';errEl.style.display='block';return;}
+    if(newPin.length<2){errEl.textContent='密碼至少需要 2 個字元';errEl.style.display='block';return;}
+    if(newPin!==confirmPin){errEl.textContent='兩次輸入的 密碼不一致';errEl.style.display='block';return;}
     emp.pin=newPin;save();
   }else{
     const pin=document.getElementById('login-emp-pin').value;
-    if(!pin){errEl.textContent='請輸入 PIN 碼';errEl.style.display='block';return;}
-    if(emp.pin!==pin){errEl.textContent='PIN 碼錯誤';errEl.style.display='block';return;}
+    if(!pin){errEl.textContent='請輸入 密碼';errEl.style.display='block';return;}
+    if(emp.pin!==pin){errEl.textContent='密碼錯誤';errEl.style.display='block';return;}
   }
   errEl.style.display='none';
   _enterSelfView(eid);
 }
 
 function showChangePinModal(){
-  document.getElementById('modal-title').textContent='修改 PIN 碼';
+  document.getElementById('modal-title').textContent='修改 密碼';
   document.getElementById('modal-msg').innerHTML=`
-    <div class="field" style="margin-bottom:10px;"><label>新 PIN 碼</label>
-      <input type="password" id="change-pin-new" placeholder="輸入新 PIN 碼" style="width:100%;">
+    <div class="field" style="margin-bottom:10px;"><label>新 密碼</label>
+      <input type="password" id="change-pin-new" placeholder="輸入新 密碼" style="width:100%;">
     </div>
-    <div class="field"><label>確認新 PIN 碼</label>
+    <div class="field"><label>確認新 密碼</label>
       <input type="password" id="change-pin-confirm" placeholder="再次輸入" style="width:100%;">
     </div>
     <div id="change-pin-err" style="display:none;font-size:.76rem;color:var(--red);margin-top:6px;"></div>`;
@@ -1215,10 +1221,10 @@ function showChangePinModal(){
     const np=document.getElementById('change-pin-new').value;
     const cp=document.getElementById('change-pin-confirm').value;
     const err=document.getElementById('change-pin-err');
-    if(!np||np.length<2){err.textContent='PIN 碼至少需要 2 個字元';err.style.display='block';return false;}
+    if(!np||np.length<2){err.textContent='密碼至少需要 2 個字元';err.style.display='block';return false;}
     if(np!==cp){err.textContent='兩次輸入不一致';err.style.display='block';return false;}
     const emp=data.employees.find(e=>e.id===_currentEmpId);
-    if(emp){emp.pin=np;save();toast('✓ PIN 碼已更新');}
+    if(emp){emp.pin=np;save();toast('✓ 密碼已更新');}
   };
 }
 
@@ -1486,14 +1492,36 @@ function clearAllEmployees(){
   if(!data.employees.length)return toast('名單已空',true);
   showModal('清除員工名單','確定要清除所有員工資料及其排假申請？',()=>{data.employees=[];data.applications=[];save();renderEmployees();updateStats();toast('✓ 已清除');});
 }
+function _empDefaultOrder(e){
+  // 預設排序分數：竹北=0/1, 足師=0/1, 班別index, id
+  const s=(e.store||'竹北店')==='竹北店'?0:1;
+  const g=(e.gender||'male')==='male'?0:1;
+  const d=data.departments.indexOf(e.dept);
+  return s*1e12+g*1e9+(d<0?999:d)*1e6+e.id%1e6;
+}
+function _ensureEmpOrder(){
+  // 若尚未有 order 欄，依預設排序補值
+  const needsOrder=data.employees.some(e=>e.order===undefined);
+  if(needsOrder){
+    [...data.employees].sort((a,b)=>_empDefaultOrder(a)-_empDefaultOrder(b))
+      .forEach((e,i)=>{e.order=i;});
+  }
+}
 function renderEmployees(){
   renderDeptOptions();
   data.employees.forEach(e=>{ if(!e.gender) e.gender='male'; if(!e.store) e.store='竹北店'; if(!e.empType) e.empType='直'; });
+  _ensureEmpOrder();
   const filter=document.getElementById('filter-dept')?.value||'';
-  const list=filter?data.employees.filter(e=>e.dept===filter):[...data.employees];
+  const list=(filter?data.employees.filter(e=>e.dept===filter):[...data.employees])
+    .sort((a,b)=>(a.order??_empDefaultOrder(a))-(b.order??_empDefaultOrder(b)));
   const tb=document.getElementById('emp-table');
-  if(!list.length){tb.innerHTML='<tr><td colspan="7" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr>';return;}
-  tb.innerHTML=list.map((e,i)=>`<tr>
+  if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty"><div class="empty-icon">👥</div>尚未新增員工</td></tr>';return;}
+  tb.innerHTML=list.map((e,i)=>`<tr draggable="true" data-id="${e.id}" style="cursor:grab;"
+    ondragstart="empDragStart(event,${e.id})"
+    ondragover="empDragOver(event)"
+    ondrop="empDrop(event,${e.id})"
+    ondragend="empDragEnd(event)">
+    <td style="color:var(--text-dim);font-size:.8rem;user-select:none;">⠿</td>
     <td><span style="font-family:'Space Mono',monospace;font-size:.66rem;color:var(--text-dim)">${String(i+1).padStart(2,'0')}</span></td>
     <td>${e.name}</td>
     <td><span class="badge ${e.gender==='female'?'b-red':'b-blue'}" style="font-size:.6rem;">${e.gender==='female'?'體師':'足師'}</span></td>
@@ -1505,6 +1533,37 @@ function renderEmployees(){
       <button class="btn btn-danger" style="padding:3px 10px;font-size:.6rem;" onclick="removeEmployee(${e.id})">移除</button>
     </td>
   </tr>`).join('');
+}
+let _dragSrcId=null;
+function empDragStart(ev,id){
+  _dragSrcId=id;
+  ev.dataTransfer.effectAllowed='move';
+  ev.currentTarget.style.opacity='0.4';
+}
+function empDragOver(ev){
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect='move';
+  document.querySelectorAll('#emp-table tr').forEach(r=>r.style.borderTop='');
+  ev.currentTarget.style.borderTop='2px solid var(--accent)';
+}
+function empDrop(ev,targetId){
+  ev.preventDefault();
+  if(_dragSrcId===null||_dragSrcId===targetId)return;
+  // 取得目前排序後的 id 列表
+  const rows=[...document.querySelectorAll('#emp-table tr[data-id]')];
+  const ids=rows.map(r=>parseInt(r.dataset.id));
+  const fromIdx=ids.indexOf(_dragSrcId);
+  const toIdx=ids.indexOf(targetId);
+  if(fromIdx<0||toIdx<0)return;
+  ids.splice(fromIdx,1);
+  ids.splice(toIdx,0,_dragSrcId);
+  // 重新寫入 order
+  ids.forEach((id,i)=>{ const e=data.employees.find(x=>x.id===id); if(e) e.order=i; });
+  save();renderEmployees();
+}
+function empDragEnd(ev){
+  _dragSrcId=null;
+  document.querySelectorAll('#emp-table tr').forEach(r=>{r.style.opacity='';r.style.borderTop='';});
 }
 function updateStats(){
   document.getElementById('stat-emp').textContent=data.employees.length;
@@ -1691,7 +1750,7 @@ function renderPeriods(){
             ${p.storeRestrict?`<span style="color:var(--accent);">僅限${p.storeRestrict}</span>`:''}
           </div>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end;">
           <button class="btn ${p.allowApplication!==false?'btn-primary':'btn-ghost'}" style="padding:4px 10px;font-size:.6rem;" onclick="togglePeriodSetting(${p.id},'allowApplication')">${p.allowApplication!==false?'✓ 排假開放':'✗ 排假關閉'}</button>
           <button class="btn ${p.allowMakeup!==false?'btn-primary':'btn-ghost'}" style="padding:4px 10px;font-size:.6rem;" onclick="togglePeriodSetting(${p.id},'allowMakeup')">${p.allowMakeup!==false?'✓ 補假開放':'✗ 補假關閉'}</button>
           <button class="btn btn-ghost" style="padding:4px 10px;font-size:.6rem;" onclick="editPeriod(${p.id})">編輯</button>
@@ -3517,7 +3576,7 @@ function onPinEmpChange(){
   const input=document.getElementById('pin-set-input');
   if(!emp){info.textContent='';if(input)input.value='';return;}
   info.innerHTML=emp.pin
-    ?`<span style="color:var(--green);">✓ 已設定 PIN 碼</span>`
+    ?`<span style="color:var(--green);">✓ 已設定 密碼</span>`
     :`<span style="color:var(--text-dim);">尚未設定</span>`;
   if(input)input.value='';
 }
@@ -3526,18 +3585,18 @@ function setEmpPin(){
   const pin=document.getElementById('pin-set-input').value.trim();
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return toast('請選擇員工',true);
-  if(!pin||pin.length<2)return toast('PIN 碼至少需要 2 個字元',true);
+  if(!pin||pin.length<2)return toast('密碼至少需要 2 個字元',true);
   emp.pin=pin;save();onPinEmpChange();
-  toast(`✓ ${emp.name} 的 PIN 碼已設定`);
+  toast(`✓ ${emp.name} 的 密碼已設定`);
 }
 function resetEmpPin(){
   const eid=parseInt(document.getElementById('pin-emp-select').value);
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return toast('請選擇員工',true);
-  if(!emp.pin)return toast('此員工尚未設定 PIN 碼',true);
-  showModal('重置 PIN 碼',`確定要清除 ${emp.name} 的 PIN 碼？員工下次登入時需重新設定。`,()=>{
+  if(!emp.pin)return toast('此員工尚未設定 密碼',true);
+  showModal('重置 密碼',`確定要清除 ${emp.name} 的 密碼？員工下次登入時需重新設定。`,()=>{
     emp.pin=null;save();onPinEmpChange();
-    toast(`✓ ${emp.name} 的 PIN 碼已重置`);
+    toast(`✓ ${emp.name} 的 密碼已重置`);
   });
 }
 
@@ -3752,22 +3811,39 @@ function publishSchedule(){
   const period=data.periods.find(p=>p.id===pid);
   if(!period)return toast('請先選擇假期',true);
   if(!data.publishedSchedules) data.publishedSchedules=[];
+  // 讀取目前篩選條件
+  const filterShift=document.getElementById('sch-shift').value;
+  const filterGender=document.getElementById('sch-gender')?.value||'';
+  const filterStore=document.getElementById('sch-store')?.value||'';
+  // 依篩選條件取得員工 id 列表
+  const filteredEmpIds=data.employees.filter(e=>{
+    if(filterShift&&e.dept!==filterShift)return false;
+    if(filterGender&&(e.gender||'male')!==filterGender)return false;
+    if(filterStore&&(e.store||'竹北店')!==filterStore)return false;
+    return true;
+  }).map(e=>e.id);
   // 移除舊的同假期發布紀錄
   data.publishedSchedules=data.publishedSchedules.filter(s=>s.periodId!==pid);
-  // 儲存目前假表快照
+  // 儲存目前假表快照（含篩選條件）
   const statusMap=buildStatusMap(period);
+  // 只保留篩選員工的 statusMap
+  const filteredStatusMap={};
+  filteredEmpIds.forEach(id=>{ if(statusMap[id]) filteredStatusMap[id]=statusMap[id]; });
   data.publishedSchedules.push({
     periodId:pid,
     periodName:period.name,
     periodStart:period.start,
     periodEnd:period.end,
     publishedAt:new Date().toLocaleString('zh-TW'),
-    statusMap:JSON.parse(JSON.stringify(statusMap))
+    filterShift,filterGender,filterStore,
+    filteredEmpIds,
+    statusMap:JSON.parse(JSON.stringify(filteredStatusMap))
   });
   save();
   // 更新發布狀態提示
   const el=document.getElementById('publish-status');
-  el.textContent=`✓ 已發布「${period.name}」假表（${new Date().toLocaleString('zh-TW')}）`;
+  const filterDesc=[filterStore,filterGender==='male'?'足師':filterGender==='female'?'體師':'',filterShift].filter(Boolean).join('・');
+  el.textContent=`✓ 已發布「${period.name}」假表${filterDesc?'（'+filterDesc+'）':''}（${new Date().toLocaleString('zh-TW')}）`;
   el.style.display='block';
   toast(`✓ 「${period.name}」假表已發布給員工`);
   // 若目前有員工端開著，更新分頁顯示
@@ -3789,16 +3865,41 @@ function updatePublishStatus(){
 }
 
 // ══ 員工端假表顯示 ══
+function onSelfScheduleSelect(){ renderSelfSchedule(); }
 function renderSelfSchedule(){
-  const el=document.getElementById('self-schedule-content');
+  const sel=document.getElementById('self-schedule-select');
   const pubs=data.publishedSchedules||[];
+  // 取得目前登入員工的店別
+  const _me=data.employees.find(e=>e.id===(_currentEmpId||(parseInt(document.getElementById('self-emp')?.value)||null)));
+  const _myStore=_me?(_me.store||'竹北店'):'';
+  // 更新下拉選單選項（只顯示員工所屬店別可看的假表）
+  if(sel){
+    const cur=sel.value;
+    sel.innerHTML='<option value="">-- 請選擇 --</option>';
+    pubs.forEach((pub,i)=>{
+      // filterStore 空字串代表全部店別皆可看；否則必須符合員工店別
+      if(pub.filterStore&&_myStore&&pub.filterStore!==_myStore)return;
+      const opt=document.createElement('option');
+      opt.value=i;
+      opt.textContent=pub.periodName+(pub.publishedAt?'（'+pub.publishedAt+'）':'');
+      sel.appendChild(opt);
+    });
+    // 若之前有選取且仍存在，保留選取
+    if(cur!==''&&pubs[parseInt(cur)]) sel.value=cur;
+  }
+  const el=document.getElementById('self-schedule-content');
   if(!pubs.length){
     el.innerHTML='<div class="empty"><div class="empty-icon">📊</div>目前尚無已發布的假表</div>';
     return;
   }
+  const selIdx=sel?parseInt(sel.value):-1;
+  if(isNaN(selIdx)||selIdx<0||!pubs[selIdx]){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📊</div>請從上方選擇要查看的假表</div>';
+    return;
+  }
   const eid=_currentEmpId||(parseInt(document.getElementById('self-emp').value)||null);
   let html='';
-  pubs.forEach(pub=>{
+  [pubs[selIdx]].forEach(pub=>{
     const period=data.periods.find(p=>p.id===pub.periodId);
     if(!period)return;
     const dates=getDates(period.start,period.end);
@@ -3810,8 +3911,9 @@ function renderSelfSchedule(){
     const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending'};
     const WD=['日','一','二','三','四','五','六'];
 
-    // 取得所有員工
-    const allEmps=data.employees.filter(e=>shifts.includes(e.dept));
+    // 取得發布範圍內的員工（依快照的 filteredEmpIds，若無則全部）
+    const empIdSet=pub.filteredEmpIds?new Set(pub.filteredEmpIds):null;
+    const allEmps=data.employees.filter(e=>shifts.includes(e.dept)&&(!empIdSet||empIdSet.has(e.id)));
     const shiftEmpsMap={};
     shifts.forEach(sh=>{ shiftEmpsMap[sh]=allEmps.filter(e=>e.dept===sh); });
 
