@@ -786,7 +786,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div style="display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="sch-view-calendar" onclick="setSchView('calendar')" style="font-size:.68rem;padding:7px 14px;">📅 月曆視圖</button>
         <button class="btn btn-ghost" id="sch-view-shift" onclick="setSchView('shift')" style="font-size:.68rem;padding:7px 14px;">👥 班別視圖</button>
-        <button class="btn btn-ghost" onclick="exportScheduleExcel()" style="font-size:.68rem;padding:7px 14px;margin-left:auto;border-color:rgba(74,232,122,.4);color:var(--green);">📊 匯出 Excel</button>
+        <button class="btn btn-ghost" onclick="exportScheduleExcel()" style="font-size:.68rem;padding:7px 14px;margin-left:auto;border-color:rgba(74,232,122,.4);color:var(--green);">📊 匯出假表</button>
+        <button class="btn btn-ghost" onclick="exportAttendanceExcel()" style="font-size:.68rem;padding:7px 14px;border-color:rgba(74,232,122,.4);color:var(--green);">📊 匯出出勤表</button>
         <button class="btn btn-primary" onclick="publishSchedule()" style="font-size:.68rem;padding:7px 14px;background:rgba(74,232,122,.85);color:#111;">📢 發布假表</button>
       </div>
       <!-- 發布狀態提示 -->
@@ -2932,7 +2933,7 @@ const _xlsx=(function(){
 <fills count="3">
  <fill><patternFill patternType="none"/></fill>
  <fill><patternFill patternType="gray125"/></fill>
- <fill><patternFill patternType="solid"><fgColor rgb="FFF4B183"/><bgColor indexed="64"/></patternFill></fill>
+ <fill><patternFill patternType="solid"><fgColor rgb="FFFF9B9B"/><bgColor indexed="64"/></patternFill></fill>
 </fills>
 <borders count="2">
  <border><left/><right/><top/><bottom/><diagonal/></border>
@@ -3038,6 +3039,44 @@ ${ssArr.map(s=>`<si><t xml:space="preserve">${xe(s)}</t></si>`).join('')}
         zipEntry('xl/styles.xml',enc(stylesXml)),
       ];
       return buildZip(entries);
+    },
+    // 多 sheet 版本，供 exportAttendanceExcel 使用
+    writeMulti(sheetDefs, stylesXml){
+      // sheetDefs: [{name, sheetXml}]
+      const wbXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets>${sheetDefs.map((s,i)=>`<sheet name="${xe(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets>
+</workbook>`;
+      const wbRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${sheetDefs.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}
+<Relationship Id="rId${sheetDefs.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+<Relationship Id="rId${sheetDefs.length+2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+      const appRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+      const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+${sheetDefs.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}
+<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+      const ssXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="0" uniqueCount="0"/>`;
+      const entries=[
+        zipEntry('[Content_Types].xml',u8(ct)),
+        zipEntry('_rels/.rels',u8(appRels)),
+        zipEntry('xl/workbook.xml',u8(wbXml)),
+        zipEntry('xl/_rels/workbook.xml.rels',u8(wbRels)),
+        ...sheetDefs.map((s,i)=>zipEntry(`xl/worksheets/sheet${i+1}.xml`,u8(s.sheetXml))),
+        zipEntry('xl/sharedStrings.xml',u8(ssXml)),
+        zipEntry('xl/styles.xml',u8(stylesXml)),
+      ];
+      return buildZip(entries);
     }
   };
 })();
@@ -3120,6 +3159,248 @@ function exportScheduleExcel(){
   URL.revokeObjectURL(url);
   toast('✓ Excel 已匯出（含完整格式）');
 }
+
+// ══ 匯出出勤表 ══
+function exportAttendanceExcel(){
+  const pid=parseInt(document.getElementById('sch-period').value);
+  const period=data.periods.find(p=>p.id===pid);
+  if(!period)return toast('請先選擇假期',true);
+
+  const filterShift=document.getElementById('sch-shift').value;
+  const filterGender=document.getElementById('sch-gender')?.value||'';
+  const filterStore=document.getElementById('sch-store')?.value||'';
+  const dates=getDates(period.start,period.end);
+  const shifts=filterShift?[filterShift]:data.departments;
+  const statusMap=buildStatusMap(period);
+  const ON_LEAVE=['lottery','direct','extra'];
+
+  // ── 篩選員工（依畫面篩選條件）──
+  const allEmps=data.employees.filter(e=>{
+    if(!shifts.includes(e.dept))return false;
+    if(filterGender&&(e.gender||'male')!==filterGender)return false;
+    if(filterStore&&(e.store||'竹北店')!==filterStore)return false;
+    return true;
+  });
+  if(!allEmps.length)return toast('篩選條件下無員工',true);
+
+  // ── 上班時段 offset（1=09:00…18=02:00）──
+  function getWorkOffsets(dept){
+    const ch=dept.charAt(0);
+    if(ch==='早') return new Set([1,2,3,4,5,6,7,8,9,10]);
+    if(ch==='中') return new Set([4,5,6,7,8,9,10,11,12,13]);
+    if(ch==='晚') return new Set([6,7,8,9,10,11,12,13,14,15,16]);
+    const m=dept.match(/(\d{1,2})[:\-](\d{1,2})/);
+    if(m){
+      const h2o={9:1,10:2,11:3,12:4,13:5,14:6,15:7,16:8,17:9,18:10,19:11,20:12,21:13,22:14,23:15,0:16,1:17,2:18};
+      const s=new Set();let h=parseInt(m[1]);const e2=parseInt(m[2]);
+      while(h!==e2){s.add(h2o[h]);h=(h+1)%24;}
+      return s;
+    }
+    return new Set([1,2,3,4,5,6,7,8,9,10]);
+  }
+
+  // ── empRows：先職稱（足師→體師），同職稱內依班別順序 ──
+  const sortedEmps=[...allEmps].sort((a,b)=>{
+    const ga=(a.gender||'male')==='male'?0:1;
+    const gb=(b.gender||'male')==='male'?0:1;
+    if(ga!==gb)return ga-gb;
+    return shifts.indexOf(a.dept)-shifts.indexOf(b.dept);
+  });
+
+  // 只在職稱切換時插入標題（全表僅出現一次足師標題、一次體師標題）
+  // 職稱標題之間間隔2列空白
+  const empRows=[];
+  const seenGender=new Set();
+  sortedEmps.forEach(emp=>{
+    const g=emp.gender||'male';
+    if(!seenGender.has(g)){
+      if(seenGender.size>0){
+        empRows.push({type:'gap'});
+        empRows.push({type:'gap'});
+      }
+      seenGender.add(g);
+      empRows.push({type:'title',label:g==='male'?'足底技師':'身體技師'});
+    }
+    empRows.push({type:'emp',emp});
+  });
+
+  const rocM=parseInt(period.start.slice(5,7));
+  const TIME_LABELS=['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00','00:00','01:00','02:00'];
+
+  // ── 版面：縱向排列，每7天為一欄（水平方向），7天垂直堆疊 ──
+  // 水平方向：每7天一組，每組佔一個「欄塊」
+  // 垂直方向：同一欄塊內7天由上到下堆疊
+  // 每天高度 = 1(日期) + 1(時間) + empRows.length + 1(底部時間)
+  // 天與天垂直間距 = 3 行（空白，無框線）
+  // 欄塊間水平間距 = 2 欄（空白，無框線）
+
+  const DAYS_PER_COL=7;           // 每欄組7天縱向
+  const COLS_PER_DAY=19;          // 名字欄(1) + 時段欄(18)
+  const H_GAP=2;                  // 欄組間水平空白欄
+  const V_GAP=3;                  // 天與天垂直空白行
+  const COL_BLOCK=COLS_PER_DAY+H_GAP;  // 21
+
+  const DAY_ROWS=1+1+empRows.length+1;      // date+time+emps+footer
+  const DAY_BLOCK_ROWS=DAY_ROWS+V_GAP;      // 含間距
+
+  const totalColGroups=Math.ceil(dates.length/DAYS_PER_COL);
+  const totalRows=DAYS_PER_COL*DAY_BLOCK_ROWS - V_GAP;  // 7天，最後一天不加間距
+  const totalCols=totalColGroups*COL_BLOCK - H_GAP;
+
+  const rows=[];
+  const cellStyles=[];
+  for(let i=0;i<totalRows;i++){
+    rows.push(new Array(totalCols).fill(null));
+    cellStyles.push(new Array(totalCols).fill(0));
+  }
+  const merges=[];
+
+  // Style indices:
+  // 0=一般(框線,12pt,置中)  1=上班填色(F4B183,框線,12pt,置中)
+  // 2=時間標頭(粗體,框線,12pt,置中)  3=日期(框線,12pt,置中)
+  // 4=職稱標題(標楷體粗體,框線,12pt,左對齊)  5=空格(無)
+
+  dates.forEach((d,di)=>{
+    const colGroup=Math.floor(di/DAYS_PER_COL);   // 第幾欄組
+    const dayInCol=di%DAYS_PER_COL;               // 欄組內第幾天（0-6，由上到下）
+
+    const colBase=colGroup*COL_BLOCK;
+    const rowBase=dayInCol*DAY_BLOCK_ROWS;
+
+    const dayNum=parseInt(d.slice(8));
+    const dateStr=`${rocM}月${dayNum}日`;
+
+    // 日期行（合併）
+    rows[rowBase][colBase]=dateStr;
+    for(let c=0;c<COLS_PER_DAY;c++) cellStyles[rowBase][colBase+c]=4;
+    merges.push({sr:rowBase+1,er:rowBase+1,sc:colBase+1,ec:colBase+COLS_PER_DAY});
+
+    // 時間標頭
+    rows[rowBase+1][colBase]='時間';
+    cellStyles[rowBase+1][colBase]=3;
+    TIME_LABELS.forEach((t,ti)=>{
+      rows[rowBase+1][colBase+1+ti]=t;
+      cellStyles[rowBase+1][colBase+1+ti]=3;
+    });
+
+    // empRows
+    empRows.forEach((er,ei)=>{
+      const rowIdx=rowBase+2+ei;
+      if(er.type==='gap'){
+        // 間距列：有框線的空白格（style 1）
+        rows[rowIdx][colBase]='';
+        cellStyles[rowIdx][colBase]=1;
+        for(let off=1;off<=18;off++){
+          rows[rowIdx][colBase+off]='';
+          cellStyles[rowIdx][colBase+off]=1;
+        }
+      } else if(er.type==='title'){
+        rows[rowIdx][colBase]=er.label;
+        for(let c=0;c<COLS_PER_DAY;c++) cellStyles[rowIdx][colBase+c]=5;
+        merges.push({sr:rowIdx+1,er:rowIdx+1,sc:colBase+1,ec:colBase+COLS_PER_DAY});
+      } else {
+        const emp=er.emp;
+        const workOffs=getWorkOffsets(emp.dept);
+        const isOnLeave=ON_LEAVE.includes((statusMap[emp.id]||{})[d]);
+        rows[rowIdx][colBase]=emp.name;
+        cellStyles[rowIdx][colBase]=1;
+        for(let off=1;off<=18;off++){
+          const isWork=workOffs.has(off)&&!isOnLeave;
+          rows[rowIdx][colBase+off]=isWork?'':null;
+          cellStyles[rowIdx][colBase+off]=isWork?2:1;
+        }
+      }
+    });
+
+    // 底部時間標頭
+    const footerRow=rowBase+2+empRows.length;
+    rows[footerRow][colBase]='時間';
+    cellStyles[footerRow][colBase]=3;
+    TIME_LABELS.forEach((t,ti)=>{
+      rows[footerRow][colBase+1+ti]=t;
+      cellStyles[footerRow][colBase+1+ti]=3;
+    });
+    // 間距行：style 5（無框線），已預設
+  });
+
+  // ── Styles XML ──
+  const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="3">
+ <font><sz val="12"/><name val="新細明體"/></font>
+ <font><b/><sz val="12"/><name val="新細明體"/></font>
+ <font><b/><sz val="12"/><name val="標楷體"/></font>
+</fonts>
+<fills count="3">
+ <fill><patternFill patternType="none"/></fill>
+ <fill><patternFill patternType="gray125"/></fill>
+ <fill><patternFill patternType="solid"><fgColor rgb="FFFF9B9B"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="2">
+ <border><left/><right/><top/><bottom/><diagonal/></border>
+ <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
+</borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="7">
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+ <xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+ <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+ <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+  function xeA(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function colNameA(n){let s='';while(n>0){s=String.fromCharCode(64+(n%26||26))+s;n=Math.floor((n-1)/26);}return s;}
+
+  let sheetRowsXml='';
+  rows.forEach((row,ri)=>{
+    let cells='';
+    row.forEach((val,ci)=>{
+      const xf=cellStyles[ri][ci];
+      if(xf===0&&(val===null||val===undefined)) return;
+      const addr=colNameA(ci+1)+(ri+1);
+      if(val===null||val===undefined||val===''){
+        cells+=`<c r="${addr}" s="${xf}"/>`;
+        return;
+      }
+      if(typeof val==='number'){
+        cells+=`<c r="${addr}" t="n" s="${xf}"><v>${val}</v></c>`;
+      } else {
+        cells+=`<c r="${addr}" t="inlineStr" s="${xf}"><is><t>${xeA(String(val))}</t></is></c>`;
+      }
+    });
+    if(cells) sheetRowsXml+=`<row r="${ri+1}">${cells}</row>`;
+  });
+
+  // 欄寬
+  let colsXml='<cols>';
+  for(let g=0;g<totalColGroups;g++){
+    const base=g*COL_BLOCK+1;
+    colsXml+=`<col min="${base}" max="${base}" width="9" customWidth="1"/>`;
+    colsXml+=`<col min="${base+1}" max="${base+18}" width="9" customWidth="1"/>`;
+    if(g<totalColGroups-1) colsXml+=`<col min="${base+19}" max="${base+20}" width="9" customWidth="1"/>`;
+  }
+  colsXml+='</cols>';
+
+  let mergeXml='';
+  if(merges.length) mergeXml=`<mergeCells count="${merges.length}">${merges.map(m=>`<mergeCell ref="${colNameA(m.sc)}${m.sr}:${colNameA(m.ec)}${m.er}"/>`).join('')}</mergeCells>`;
+
+  const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView showGridLines="1" workbookViewId="0" zoomScale="70" zoomScaleNormal="70"/></sheetViews>${colsXml}<sheetData>${sheetRowsXml}</sheetData>${mergeXml}</worksheet>`;
+
+  const buf=_xlsx.writeMulti([{name:period.name,sheetXml}],stylesXml);
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const ts=new Date().toISOString().slice(0,10);
+  a.href=url; a.download=`出勤表_${period.name}_${ts}.xlsx`; a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ 出勤表已匯出');
+}
+
 
 function onSchPeriodChange(){
   const pid=parseInt(document.getElementById('sch-period').value);
