@@ -341,6 +341,24 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div>
 </div>
 
+<!-- ══ EDIT ADMIN MODAL ══ -->
+<div id="edit-admin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px;width:90%;max-width:380px;">
+    <div style="font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;margin-bottom:18px;">編輯管理員</div>
+    <div class="field"><label>帳號</label><input type="text" id="edit-admin-user" style="width:100%;"></div>
+    <div class="field"><label>權限</label>
+      <select id="edit-admin-role" style="width:100%;">
+        <option value="主管">主管</option>
+        <option value="櫃檯">櫃檯</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeEditAdmin()">取消</button>
+      <button class="btn btn-primary" onclick="saveEditAdmin()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ HEADER ══ -->
 <div class="header" id="main-header" style="display:none;">
   <div class="header-icon">🎴</div>
@@ -364,12 +382,13 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <!-- ══ ADMIN VIEW ══ -->
 <div id="admin-view" style="display:none;">
   <div class="tabs">
-    <button class="tab active" onclick="switchTab('employees')">👤 員工管理</button>
-    <button class="tab" onclick="switchTab('periods')">📅 假期設定</button>
-    <button class="tab" onclick="switchTab('applications')">✍️ 排假申請</button>
-    <button class="tab" onclick="switchTab('lottery')">🎲 抽籤</button>
-    <button class="tab" onclick="switchTab('schedule')">📊 假表</button>
-    <button class="tab" onclick="switchTab('history')">📋 歷史紀錄</button>
+    <button class="tab active" id="tab-employees" onclick="switchTab('employees')">👤 員工管理</button>
+    <button class="tab" id="tab-periods" onclick="switchTab('periods')">📅 假期設定</button>
+    <button class="tab" id="tab-applications" onclick="switchTab('applications')">✍️ 排假申請</button>
+    <button class="tab" id="tab-lottery" onclick="switchTab('lottery')">🎲 抽籤</button>
+    <button class="tab" id="tab-schedule" onclick="switchTab('schedule')">📊 假表</button>
+    <button class="tab" id="tab-history" onclick="switchTab('history')">📋 歷史紀錄</button>
+    <button class="tab" id="tab-counter" style="display:none;" onclick="switchTab('counter')">🗂️ 櫃檯管理</button>
     <button class="tab" id="tab-accounts" style="display:none;" onclick="switchTab('accounts')">🔑 帳號管理</button>
   </div>
   <div class="main">
@@ -809,6 +828,36 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
 
+    <!-- 櫃檯管理 -->
+    <div id="panel-counter" class="panel">
+      <div class="section-title">櫃檯管理 — 代為排假</div>
+      <div class="card">
+        <div class="section-title">選擇管理員與假期</div>
+        <div class="grid-2">
+          <div>
+            <div class="field"><label>管理員</label>
+              <select id="counter-admin" onchange="onCounterAdminChange()" style="width:100%;">
+                <option value="">-- 選擇管理員 --</option>
+              </select>
+            </div>
+            <div class="field"><label>選擇假期</label>
+              <select id="counter-period" onchange="onCounterPeriodChange()"><option value="">-- 選擇假期 --</option></select>
+            </div>
+          </div>
+          <div class="field"><label>申請日期（可多選）</label>
+            <div id="counter-dates-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:9px;min-height:80px;max-height:170px;overflow-y:auto;">
+              <div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addCounterApplication()">新增排假申請</button>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-bottom:10px;">排假申請總覽</div>
+        <div id="counter-overview"></div>
+      </div>
+    </div>
+
     <!-- 帳號管理（僅超級管理員） -->
     <div id="panel-accounts" class="panel">
       <div class="section-title">帳號管理</div>
@@ -818,6 +867,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="section-title">管理員帳號</div>
           <div class="field"><label>帳號</label><input type="text" id="new-admin-user" placeholder="輸入帳號"></div>
           <div class="field"><label>密碼</label><input type="password" id="new-admin-pw" placeholder="輸入密碼"></div>
+          <div class="field"><label>權限</label>
+            <select id="new-admin-role" style="width:100%;">
+              <option value="主管">主管</option>
+              <option value="櫃檯">櫃檯</option>
+            </select>
+          </div>
           <button class="btn btn-primary" onclick="addAdmin()">新增管理員</button>
           <div id="admin-list" style="margin-top:14px;"></div>
         </div>
@@ -1041,6 +1096,9 @@ function migrateData(d){
   if(!Array.isArray(d.admins)) d.admins=[];
   if(!d.dailyLimits) d.dailyLimits={};
   if(!d.publishedSchedules) d.publishedSchedules=[];
+  if(!d.counterApplications) d.counterApplications=[];
+  // 清除所有假期的職稱限制
+  if(d.periods) d.periods.forEach(p=>{ p.genderRestrict=''; });
   if(!Array.isArray(d.longLeaves)) d.longLeaves=[];
   if(!d.empQuotas) d.empQuotas={};
   d.employees.forEach(e=>{ if(!e.store) e.store='竹北店'; });
@@ -1095,7 +1153,7 @@ function refreshCurrentTab(){
   const active=document.querySelector('.panel.active');
   if(!active) return;
   const id=active.id.replace('panel-','');
-  if(['employees','periods','applications','lottery','schedule','history'].includes(id)) switchTab(id);
+  if(['employees','periods','applications','lottery','schedule','history','counter'].includes(id)) switchTab(id);
 }
 
 // ══ UTILS ══
@@ -1282,22 +1340,37 @@ function loginAsAdmin(){
       document.getElementById('login-admin-pw').value='';return;}
   }
   errEl.style.display='none';
+  // 取得管理員權限（超級管理員=superadmin, 一般管理員依 role 欄位）
+  const foundAdmin=(data.admins||[]).find(a=>a.username===user);
+  const adminRole=role==='superadmin'?'superadmin':(foundAdmin?.role||'主管');
+  const isCounter=adminRole==='櫃檯';
   _currentRole=role; _currentAdminUser=user; _currentEmpId=null;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-header').style.display='flex';
-  document.getElementById('header-user-info').textContent=`🔧 ${role==='superadmin'?'超級管理員':user}`;
+  const roleLabel=role==='superadmin'?'超級管理員':(isCounter?'櫃檯':'主管');
+  document.getElementById('header-user-info').textContent=`🔧 ${user}（${roleLabel}）`;
   if(window._isLocalMode) document.getElementById('local-mode-banner').style.display='block';
   document.getElementById('admin-view').style.display='block';
   document.getElementById('self-view').style.display='none';
-  // 超級管理員才顯示帳號管理分頁
   document.getElementById('btn-change-pin').style.display='none';
+  // 權限控制：超級管理員=全開, 主管=全開（除帳號管理）, 櫃檯=僅假表+歷史紀錄
   document.getElementById('tab-accounts').style.display=role==='superadmin'?'inline-block':'none';
   document.getElementById('btn-simulate-emp').style.display=role==='superadmin'?'inline-block':'none';
   document.getElementById('btn-back-to-admin').style.display='none';
   document.getElementById('btn-export-data').style.display=role==='superadmin'?'inline-block':'none';
   document.getElementById('btn-copy-data').style.display=role==='superadmin'?'inline-block':'none';
   document.getElementById('btn-import-data').style.display=role==='superadmin'?'inline-block':'none';
-  renderDeptOptions();renderDeptList();renderEmployees();updateStats();
+  // 櫃檯：隱藏不相關分頁
+  const counterHide=['tab-employees','tab-periods','tab-applications','tab-lottery'];
+  counterHide.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=isCounter?'none':''});
+  // 超級管理員和主管顯示櫃檯管理分頁
+  const tcEl=document.getElementById('tab-counter');
+  if(tcEl)tcEl.style.display=role==='superadmin'||!isCounter?'inline-block':'none';
+  if(isCounter){
+    switchTab('schedule');
+  } else {
+    renderDeptOptions();renderDeptList();renderEmployees();updateStats();
+  }
 }
 
 function logout(){
@@ -1311,7 +1384,9 @@ function logout(){
   document.getElementById('btn-copy-data').style.display='none';
   document.getElementById('btn-import-data').style.display='none';
   showLoginScreen();
-}
+  // 恢復所有分頁顯示
+  ['tab-employees','tab-periods','tab-applications','tab-lottery','tab-counter'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
+  }
 
 // ══ 超級管理員模擬員工模式 ══
 let _isSimulating = false;
@@ -1384,7 +1459,7 @@ function setMode(m){
 
 // ══ TABS ══
 function switchTab(name){
-  const ns=['employees','periods','applications','lottery','schedule','history','accounts'];
+  const ns=['employees','periods','applications','lottery','schedule','history','counter','accounts'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',ns[i]===name));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
@@ -1396,6 +1471,7 @@ function switchTab(name){
   if(name==='schedule'){initSchedule();}
   if(name==='history')renderHistory();
   if(name==='accounts')renderAccounts();
+  if(name==='counter')initCounterPanel();
 }
 
 // ══ DEPTS ══
@@ -1810,7 +1886,6 @@ function renderPeriods(){
             <span style="color:var(--green);">平日 ${wdCount} 天</span>
             <span style="color:var(--accent);">假日 ${hlCount} 天</span>
             ${clCount?`<span style="color:var(--red);">不開放 ${clCount} 天</span>`:''}
-            ${p.genderRestrict==='male'?`<span style="color:#7ab4f0;">僅限足師</span>`:p.genderRestrict==='female'?`<span style="color:#f07ab4;">僅限體師</span>`:''}
             ${p.storeRestrict?`<span style="color:var(--accent);">僅限${p.storeRestrict}</span>`:''}
           </div>
         </div>
@@ -1858,7 +1933,7 @@ function editPeriod(id){
   document.getElementById('period-name').value=p.name;
   document.getElementById('period-start').value=p.start;
   document.getElementById('period-end').value=p.end;
-  document.getElementById('period-gender').value=p.genderRestrict||'';
+  // genderRestrict removed
   document.getElementById('period-store').value=p.storeRestrict||'';
 
   // 還原 _dateTypes 和 _limits
@@ -3443,6 +3518,125 @@ function exportAttendanceExcel(){
 }
 
 
+// ══ 櫃檯管理 ══
+function initCounterPanel(){
+  // 填入管理員選單（排除超級管理員）
+  const sel=document.getElementById('counter-admin');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">-- 選擇管理員 --</option>';
+  (data.admins||[]).forEach(a=>{
+    const o=document.createElement('option');
+    o.value=a.id; o.textContent=`${a.username}（${a.role||'主管'}）`;
+    sel.appendChild(o);
+  });
+  if(cur) sel.value=cur;
+  // 填入假期選單
+  const ps=document.getElementById('counter-period');
+  const pcur=ps.value;
+  ps.innerHTML='<option value="">-- 選擇假期 --</option>';
+  data.periods.forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.id; o.textContent=`${p.name} (${p.start}～${p.end})`;
+    ps.appendChild(o);
+  });
+  if(pcur) ps.value=pcur;
+  renderCounterOverview();
+}
+function onCounterAdminChange(){
+  // 重新選管理員時清除日期勾選
+  document.querySelectorAll('#counter-dates-wrap input[type=checkbox]').forEach(cb=>cb.checked=false);
+}
+function onCounterPeriodChange(){
+  const pid=parseInt(document.getElementById('counter-period').value);
+  const p=data.periods.find(x=>x.id===pid);
+  const dw=document.getElementById('counter-dates-wrap');
+  // 清除日期勾選
+  if(!p){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>';return;}
+  const dates=getDates(p.start,p.end);
+  dw.innerHTML=dates.map(d=>`<label style="display:inline-flex;align-items:center;gap:5px;margin:3px 7px 3px 0;cursor:pointer;font-size:.8rem;font-family:'Noto Serif TC',serif;color:${isWk(d)?'var(--accent2)':'var(--text)'};text-transform:none;letter-spacing:0;">
+    <input type="checkbox" id="counterdate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"> ${fd(d)}
+  </label>`).join('');
+}
+function addCounterApplication(){
+  const aid=document.getElementById('counter-admin').value;
+  const pid=parseInt(document.getElementById('counter-period').value);
+  if(!aid)return toast('請選擇管理員',true);
+  if(!pid)return toast('請選擇假期',true);
+  const admin=(data.admins||[]).find(a=>a.id===aid);
+  if(!admin)return toast('找不到管理員',true);
+  const p=data.periods.find(x=>x.id===pid);
+  if(!p)return toast('找不到假期',true);
+  const dates=getDates(p.start,p.end).filter(d=>document.getElementById('counterdate_'+d)?.checked);
+  if(!dates.length)return toast('請至少勾選一個日期',true);
+  // 以管理員 id 作為 empId（用特殊前綴區分）
+  if(!data.counterApplications) data.counterApplications=[];
+  let added=0;
+  dates.forEach(d=>{
+    const exists=data.counterApplications.find(a=>a.adminId===aid&&a.periodId===pid&&a.date===d);
+    if(!exists){
+      data.counterApplications.push({
+        id:`ca_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+        adminId:aid,
+        adminName:admin.username,
+        adminRole:admin.role||'主管',
+        periodId:pid,
+        periodName:p.name,
+        date:d,
+        appliedAt:new Date().toLocaleString('zh-TW')
+      });
+      added++;
+    }
+  });
+  save();
+  renderCounterOverview();
+  document.querySelectorAll('#counter-dates-wrap input[type=checkbox]').forEach(cb=>cb.checked=false);
+  toast(`✓ ${admin.username} 排假 ${added} 天`);
+}
+function removeCounterApplication(id){
+  showModal('刪除排假','確定要刪除此排假申請？',()=>{
+    data.counterApplications=(data.counterApplications||[]).filter(a=>a.id!==id);
+    save();renderCounterOverview();toast('✓ 已刪除');
+  });
+}
+function renderCounterOverview(){
+  const el=document.getElementById('counter-overview');
+  if(!el)return;
+  const apps=data.counterApplications||[];
+  if(!apps.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">🗂️</div>尚無排假申請</div>';
+    return;
+  }
+  // 依管理員分組
+  const grouped={};
+  apps.forEach(a=>{
+    const key=a.adminId;
+    if(!grouped[key]) grouped[key]={adminName:a.adminName,adminRole:a.adminRole,apps:[]};
+    grouped[key].apps.push(a);
+  });
+  el.innerHTML=Object.entries(grouped).map(([aid,g])=>`
+    <div class="app-shift-block" style="margin-bottom:8px;">
+      <div class="app-shift-hdr" onclick="this.parentElement.classList.toggle('open')">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <span style="font-family:'Space Mono',monospace;font-size:.72rem;font-weight:700;">👤 ${g.adminName}</span>
+          <span class="badge b-gray">${g.adminRole}</span>
+          <span class="badge b-yellow">${g.apps.length} 天</span>
+        </div>
+        <span style="color:var(--text-dim);font-size:.78rem;">▾</span>
+      </div>
+      <div class="app-shift-body">
+        ${g.apps.sort((a,b)=>a.date.localeCompare(b.date)).map(a=>`
+          <div class="day-row" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <span style="font-family:'Space Mono',monospace;font-size:.74rem;">${fd(a.date)}</span>
+              <span style="font-size:.72rem;color:var(--text-dim);margin-left:8px;">${a.periodName}</span>
+            </div>
+            <button class="btn btn-danger" style="padding:2px 9px;font-size:.6rem;" onclick="removeCounterApplication('${a.id}')">刪除</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+
 function onSchPeriodChange(){
   const pid=parseInt(document.getElementById('sch-period').value);
   const period=pid?data.periods.find(p=>p.id===pid):null;
@@ -3644,6 +3838,20 @@ function renderSchedule(){
     if(filterStore && (e.store||'竹北店')!==filterStore) return false;
     return true;
   });
+  // 櫃檯排假：取得本假期有排假紀錄的管理員（不受篩選限制，優先顯示）
+  const counterApps=data.counterApplications||[];
+  const counterInPeriod=counterApps.filter(a=>a.periodId===pid);
+  const counterAdminIds=[...new Set(counterInPeriod.map(a=>a.adminId))];
+  const counterAdmins=counterAdminIds.map(aid=>{
+    const app=counterInPeriod.find(a=>a.adminId===aid);
+    return {id:aid,name:app.adminName,role:app.adminRole||'主管'};
+  });
+  // 建立櫃檯 dateMap: adminId -> Set of dates
+  const counterDateMap={};
+  counterInPeriod.forEach(a=>{
+    if(!counterDateMap[a.adminId]) counterDateMap[a.adminId]=new Set();
+    counterDateMap[a.adminId].add(a.date);
+  });
   const ON_LEAVE=['lottery','direct','extra'];
   const STATUS_ICON={lottery:'●',direct:'●',extra:'▲',loser:'✕',pending:'◐','el-pending':'?'};
   const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending'};
@@ -3651,16 +3859,22 @@ function renderSchedule(){
   if(_schView==='calendar'){
     // 日期為列、員工為欄
     let html='<div style="overflow-x:auto;"><table class="sch-table"><thead>';
-    // 第一列：班別群組
+    // 第一列：班別群組（櫃檯優先）
     html+='<tr><th style="text-align:left;padding:6px 10px;white-space:nowrap;min-width:90px;">日期</th>';
+    if(counterAdmins.length){
+      html+=`<th colspan="${counterAdmins.length}" style="text-align:center;padding:5px 6px;background:rgba(122,180,240,.12);color:#7ab4f0;font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;border-left:2px solid var(--border);">櫃檯</th>`;
+    }
     shifts.forEach(shift=>{
       const emps=allEmps.filter(e=>e.dept===shift);
       if(!emps.length)return;
       html+=`<th colspan="${emps.length}" style="text-align:center;padding:5px 6px;background:rgba(232,200,74,.08);color:var(--accent);font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;border-left:2px solid var(--border);">${shift}</th>`;
     });
     html+='</tr>';
-    // 第二列：員工名字
+    // 第二列：名字（櫃檯優先）
     html+='<tr><th style="padding:4px 10px;font-size:.58rem;color:var(--text-dim);font-weight:400;"></th>';
+    counterAdmins.forEach((ca,i)=>{
+      html+=`<th style="text-align:center;padding:4px 5px;min-width:44px;font-size:.66rem;font-weight:600;white-space:nowrap;color:#7ab4f0;${i===0?'border-left:2px solid var(--border)':''}">${ca.name}<br><span style="font-size:.52rem;font-weight:400;opacity:.7;">${ca.role}</span></th>`;
+    });
     shifts.forEach(shift=>{
       const emps=allEmps.filter(e=>e.dept===shift);
       if(!emps.length)return;
@@ -3693,6 +3907,11 @@ function renderSchedule(){
       });
       const rowBg=isWkd?'background:rgba(232,200,74,.04);':isClosed?'background:rgba(232,74,74,.04);':'';
       html+=`<tr${rowBg?` style="${rowBg}"`:''}><td style="padding:5px 10px;font-family:'Space Mono',monospace;font-size:.68rem;white-space:nowrap;${isWkd?'color:var(--accent2)':isClosed?'color:var(--red);opacity:.5':''}">${fd(d)}<br><span style="font-size:.55rem;color:var(--text-dim);">${shiftLimSummary}</span></td>`;
+      // 櫃檯欄位（優先）
+      counterAdmins.forEach((ca,i)=>{
+        const isOff=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
+        html+=`<td class="${isOff?'cell-direct':''}" title="${isOff?'休假':''}" style="${i===0?'border-left:2px solid var(--border)':''}"><span class="cell-dot">${isOff?'●':''}</span></td>`;
+      });
       shifts.forEach(shift=>{
         const emps=allEmps.filter(e=>e.dept===shift);
         if(!emps.length)return;
@@ -3713,6 +3932,10 @@ function renderSchedule(){
 
     // Footer: 可休天數
     html+='<tr style="border-top:2px solid var(--border);"><td style="padding:5px 10px;font-family:\'Space Mono\',monospace;font-size:.6rem;color:var(--text-dim);">可休天數</td>';
+    counterAdmins.forEach((ca,i)=>{
+      const count=dates.filter(d=>counterDateMap[ca.id]&&counterDateMap[ca.id].has(d)).length;
+      html+=`<td style="text-align:center;font-family:'Space Mono',monospace;font-size:.68rem;font-weight:700;color:${count>0?'#7ab4f0':'var(--text-dim)'};${i===0?'border-left:2px solid var(--border)':''}">${count}</td>`;
+    });
     shifts.forEach(shift=>{
       const emps=allEmps.filter(e=>e.dept===shift);
       if(!emps.length)return;
@@ -3850,8 +4073,12 @@ function renderAccounts(){
   } else {
     el.innerHTML=admins.map(a=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);gap:8px;">
-        <span style="font-family:'Space Mono',monospace;font-size:.78rem;">👤 ${a.username}</span>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-family:'Space Mono',monospace;font-size:.78rem;">👤 ${a.username}</span>
+          <span class="badge b-gray" style="font-size:.58rem;">${a.role||'主管'}</span>
+        </div>
         <div style="display:flex;gap:5px;">
+          <button class="btn btn-ghost" style="padding:3px 9px;font-size:.6rem;" onclick="openEditAdmin('${a.id}')">編輯</button>
           <button class="btn btn-ghost" style="padding:3px 9px;font-size:.6rem;" onclick="changeAdminPw('${a.id}')">改密碼</button>
           <button class="btn btn-danger" style="padding:3px 9px;font-size:.6rem;" onclick="removeAdmin('${a.id}')">刪除</button>
         </div>
@@ -3876,10 +4103,12 @@ function addAdmin(){
   if(sa&&user===sa.username)return toast('不可使用此帳號名稱',true);
   if((data.admins||[]).find(a=>a.username===user))return toast('帳號已存在',true);
   if(!data.admins)data.admins=[];
-  data.admins.push({id:`${Date.now()}`,username:user,password:pw});
+  const role=document.getElementById('new-admin-role').value||'主管';
+  data.admins.push({id:`${Date.now()}`,username:user,password:pw,role});
   save();renderAccounts();
   document.getElementById('new-admin-user').value='';
   document.getElementById('new-admin-pw').value='';
+  document.getElementById('new-admin-role').value='主管';
   toast(`✓ 管理員「${user}」已新增`);
 }
 function changeAdminPw(id){
@@ -3906,6 +4135,31 @@ function removeAdmin(id){
     data.admins=(data.admins||[]).filter(a=>a.id!==id);
     save();renderAccounts();toast('✓ 已刪除');
   });
+}
+let _editAdminId=null;
+function openEditAdmin(id){
+  const a=(data.admins||[]).find(x=>x.id===id);
+  if(!a)return;
+  _editAdminId=id;
+  document.getElementById('edit-admin-user').value=a.username;
+  document.getElementById('edit-admin-role').value=a.role||'主管';
+  document.getElementById('edit-admin-modal').style.display='flex';
+}
+function closeEditAdmin(){
+  _editAdminId=null;
+  document.getElementById('edit-admin-modal').style.display='none';
+}
+function saveEditAdmin(){
+  const a=(data.admins||[]).find(x=>x.id===_editAdminId);
+  if(!a)return;
+  const newUser=document.getElementById('edit-admin-user').value.trim();
+  if(!newUser)return toast('帳號不可為空',true);
+  const sa=getSuperAdmin();
+  if(sa&&newUser===sa.username&&a.username!==sa.username)return toast('不可使用此帳號名稱',true);
+  if((data.admins||[]).find(x=>x.id!==_editAdminId&&x.username===newUser))return toast('帳號已存在',true);
+  a.username=newUser;
+  a.role=document.getElementById('edit-admin-role').value||'主管';
+  save();renderAccounts();closeEditAdmin();toast('✓ 管理員資料已更新');
 }
 function onPinStoreChange(){
   const store=document.getElementById('pin-store-select').value;
@@ -4481,6 +4735,7 @@ function bootUI(){
     document.getElementById('btn-change-pin').style.display='none';
     document.getElementById('local-mode-banner').style.display='block';
     document.getElementById('tab-accounts').style.display='inline-block';
+    document.getElementById('tab-counter').style.display='inline-block';
     document.getElementById('btn-simulate-emp').style.display='inline-block';
     document.getElementById('btn-back-to-admin').style.display='none';
     document.getElementById('btn-export-data').style.display='inline-block';
