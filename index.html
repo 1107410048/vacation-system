@@ -278,7 +278,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           👋 首次登入，請設定您的 密碼
         </div>
         <div class="field" style="margin-bottom:10px;">
-          <label>設定 密碼</label>
+          <label>設定密碼</label>
           <input type="password" id="login-emp-pin-new" placeholder="自訂 密碼" style="width:100%;"
             onkeydown="if(event.key==='Enter')document.getElementById('login-emp-pin-confirm').focus()">
         </div>
@@ -522,7 +522,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div style="margin-bottom:16px;font-family:'Space Mono',monospace;font-size:.6rem;color:var(--text-dim);">※ 填 0 表示該班別該日不開放排假。可在套用後手動微調個別欄位。</div>
         </div>
 
-        <button class="btn btn-primary" onclick="addPeriod()">新增假期</button>
+        <div style="display:inline-flex;gap:8px;align-items:center;">
+          <button class="btn btn-primary" id="btn-add-period" onclick="addPeriod()">新增假期</button>
+          <button class="btn btn-ghost" id="btn-cancel-edit-period" onclick="cancelEditPeriod()" style="display:none;">取消</button>
+        </div>
       </div>
       <div class="card">
         <div class="section-title">假期列表</div>
@@ -866,7 +869,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="card">
           <div class="section-title">管理員帳號</div>
           <div class="field"><label>帳號</label><input type="text" id="new-admin-user" placeholder="輸入帳號"></div>
-          <div class="field"><label>密碼</label><input type="password" id="new-admin-pw" placeholder="輸入密碼"></div>
+          <div class="field"><label>密碼</label><input type="text" id="new-admin-pw" placeholder="輸入密碼"></div>
           <div class="field"><label>權限</label>
             <select id="new-admin-role" style="width:100%;">
               <option value="主管">主管</option>
@@ -878,7 +881,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
         <!-- 員工 PIN 管理 -->
         <div class="card">
-          <div class="section-title">員工 密碼管理</div>
+          <div class="section-title">員工帳號</div>
           <div class="field"><label>店別</label>
             <select id="pin-store-select" onchange="onPinStoreChange()" style="width:100%;">
               <option value="">-- 選擇店別 --</option>
@@ -886,12 +889,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
               <option value="關新店">關新店</option>
             </select>
           </div>
-          <div class="field" id="pin-emp-field" style="display:none;"><label>選擇員工</label>
+          <div class="field"><label>選擇員工</label>
             <select id="pin-emp-select" onchange="onPinEmpChange()" style="width:100%;"><option value="">-- 選擇員工 --</option></select>
           </div>
-          <div id="pin-current" style="font-size:.78rem;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);"></div>
-          <div class="field" style="margin-bottom:10px;"><label>設定 密碼</label>
-            <input type="text" id="pin-set-input" placeholder="輸入新 密碼" style="width:100%;">
+          <div id="pin-current" style="font-size:.78rem;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-dim);">--先選擇員工--</div>
+          <div class="field" style="margin-bottom:10px;"><label>設定密碼</label>
+            <input type="text" id="pin-set-input" placeholder="輸入新密碼" style="width:100%;">
           </div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-primary" style="flex:1;" onclick="setEmpPin()">設定密碼</button>
@@ -1161,7 +1164,19 @@ function getDates(s,e){ const r=[],c=new Date(s),l=new Date(e); while(c<=l){r.pu
 const WD=['日','一','二','三','四','五','六'];
 function fd(d){ const dt=new Date(d+'T00:00:00'); return `${d.slice(5)}(${WD[dt.getDay()]})`; }
 function isWk(d){ const n=new Date(d+'T00:00:00').getDay(); return n===0||n===6; }
-function getLim(p,shift,d){ return (p.limits&&p.limits[shift]&&p.limits[shift][d]!==undefined)?p.limits[shift][d]:1; }
+function getLim(p,shift,d,gender){
+  if(!p.limits||!p.limits[shift]) return gender?1:2;
+  const v=p.limits[shift][d];
+  if(v===undefined) return gender?1:2;
+  if(typeof v==='object'&&v!==null){
+    if(gender==='male') return v.male??1;
+    if(gender==='female') return v.female??1;
+    return (v.male??1)+(v.female??1); // 加總
+  }
+  // 舊格式（單一數字）
+  if(gender) return Math.ceil(v/2);
+  return v;
+}
 function getApps(periodId,shift,d){ return data.applications.filter(a=>a.periodId===periodId&&a.shift===shift&&a.dates.includes(d)); }
 
 // ══ TOAST / MODAL ══
@@ -1286,7 +1301,7 @@ function showChangePinModal(){
   document.getElementById('modal-title').textContent='修改 密碼';
   document.getElementById('modal-msg').innerHTML=`
     <div class="field" style="margin-bottom:10px;"><label>新 密碼</label>
-      <input type="password" id="change-pin-new" placeholder="輸入新 密碼" style="width:100%;">
+      <input type="password" id="change-pin-new" placeholder="輸入新密碼" style="width:100%;">
     </div>
     <div class="field"><label>確認新 密碼</label>
       <input type="password" id="change-pin-confirm" placeholder="再次輸入" style="width:100%;">
@@ -1715,12 +1730,12 @@ function buildPeriodSetup(){
   wrap.style.display='block';
   const dates=getDates(start,end);
   _dateTypes={};
-  dates.forEach(d=>{ _dateTypes[d]=isWk(d)?'holiday':'weekday'; });
+  dates.forEach(d=>{ const n=new Date(d+'T00:00:00').getDay(); _dateTypes[d]=(n===5||n===6||n===0)?'holiday':'weekday'; });
   // init _limits with default 1
   _limits={};
   data.departments.forEach(sh=>{
     _limits[sh]={};
-    dates.forEach(d=>{ _limits[sh][d]=_dateTypes[d]==='closed'?0:1; });
+    dates.forEach(d=>{ _limits[sh][d]=_dateTypes[d]==='closed'?0:{male:1,female:1}; });
   });
   renderDateTypeRow(dates);
   renderShiftDefaults();
@@ -1792,7 +1807,7 @@ function applyDefaults(){
   if(!start||!end)return toast('請先設定日期區間',true);
 
   const dates=getDates(start,end), shifts=data.departments;
-  dates.forEach(d=>{ if(!(d in _dateTypes)) _dateTypes[d]=isWk(d)?'holiday':'weekday'; });
+  dates.forEach(d=>{ if(!(d in _dateTypes)){ const n=new Date(d+'T00:00:00').getDay(); _dateTypes[d]=(n===5||n===6||n===0)?'holiday':'weekday'; }});
 
   // Write from _shiftDefaults into _limits（足師＋體師加總）
   shifts.forEach(sh=>{
@@ -1803,7 +1818,7 @@ function applyDefaults(){
       if(t==='closed'){_limits[sh][d]=0;return;}
       const mVal=t==='holiday'?_shiftDefaults[sh].male_holiday:_shiftDefaults[sh].male_weekday;
       const fVal=t==='holiday'?_shiftDefaults[sh].female_holiday:_shiftDefaults[sh].female_weekday;
-      _limits[sh][d]=(mVal||0)+(fVal||0);
+      _limits[sh][d]={male:mVal||0,female:fVal||0};
     });
   });
 
@@ -1814,19 +1829,28 @@ function applyDefaults(){
 
 function renderLimitTable(dates){
   const shifts=data.departments;
-  document.getElementById('limit-thead').innerHTML='<tr><th style="text-align:left;padding:6px 10px;white-space:nowrap;">班別 \\ 日期</th>'+
+  // 表頭：班別 + 日期（每日兩欄：足師/體師）
+  document.getElementById('limit-thead').innerHTML=
+    '<tr><th style="text-align:left;padding:6px 10px;white-space:nowrap;" rowspan="2">班別 \\ 日期</th>'+
     dates.map(d=>{
       const t=_dateTypes[d]||'weekday';
       const col=t==='holiday'?'var(--accent)':t==='closed'?'var(--red)':'';
-      return `<th id="lth_${d}" style="text-align:center;padding:6px 4px;min-width:58px;color:${col};">${fd(d)}<br><span style="font-size:.52rem;font-weight:400;">${TYPE_LABELS[t]}</span></th>`;
+      return `<th id="lth_${d}" colspan="2" style="text-align:center;padding:6px 4px;min-width:80px;color:${col};">${fd(d)}<br><span style="font-size:.52rem;font-weight:400;">${TYPE_LABELS[t]}</span></th>`;
+    }).join('')+'</tr>'+
+    '<tr>'+dates.map(d=>{
+      const t=_dateTypes[d]||'weekday';
+      const bg=t==='closed'?'rgba(232,74,74,.07)':t==='holiday'?'rgba(232,200,74,.06)':'';
+      return `<th style="text-align:center;padding:3px 4px;font-size:.58rem;color:#7ab4f0;${bg?'background:'+bg:''}">足</th><th style="text-align:center;padding:3px 4px;font-size:.58rem;color:#f07ab4;${bg?'background:'+bg:''}">體</th>`;
     }).join('')+'</tr>';
   document.getElementById('limit-tbody').innerHTML=shifts.map(sh=>`<tr>
     <td style="padding:5px 10px;white-space:nowrap;"><span class="badge b-yellow">${sh}</span></td>
     ${dates.map(d=>{
       const t=_dateTypes[d]||'weekday';
-      const val=(_limits[sh]&&_limits[sh][d]!==undefined)?_limits[sh][d]:(t==='closed'?0:1);
+      const raw=(_limits[sh]&&_limits[sh][d]!==undefined)?_limits[sh][d]:null;
+      const mVal=raw===null?(t==='closed'?0:1):typeof raw==='object'?(raw.male??1):(Math.ceil(raw/2));
+      const fVal=raw===null?(t==='closed'?0:1):typeof raw==='object'?(raw.female??1):(Math.floor(raw/2));
       const bg=t==='closed'?'rgba(232,74,74,.07)':t==='holiday'?'rgba(232,200,74,.06)':'var(--surface2)';
-      return `<td style="padding:3px 4px;text-align:center;"><input type="number" min="0" value="${val}" oninput="_limits['${sh}']&&(_limits['${sh}']['${d}']=Math.max(0,parseInt(this.value)||0))" style="width:46px;padding:3px;text-align:center;font-family:'Space Mono',monospace;font-size:.74rem;background:${bg};"></td>`;
+      return `<td style="padding:2px 3px;text-align:center;"><input type="number" min="0" value="${mVal}" oninput="if(!_limits['${sh}'])_limits['${sh}']={};const v=_limits['${sh}']['${d}'];_limits['${sh}']['${d}']={male:Math.max(0,parseInt(this.value)||0),female:typeof v==='object'?(v.female??0):0};" style="width:38px;padding:2px;text-align:center;font-family:'Space Mono',monospace;font-size:.72rem;background:${bg};border:1px solid rgba(122,180,240,.4);"></td><td style="padding:2px 3px;text-align:center;"><input type="number" min="0" value="${fVal}" oninput="if(!_limits['${sh}'])_limits['${sh}']={};const v=_limits['${sh}']['${d}'];_limits['${sh}']['${d}']={male:typeof v==='object'?(v.male??0):0,female:Math.max(0,parseInt(this.value)||0)};" style="width:38px;padding:2px;text-align:center;font-family:'Space Mono',monospace;font-size:.72rem;background:${bg};border:1px solid rgba(240,122,180,.4);"></td>`;
     }).join('')}
   </tr>`).join('');
 }
@@ -1841,8 +1865,8 @@ function addPeriod(){
   shifts.forEach(sh=>{
     limits[sh]={};
     dates.forEach(d=>{
-      // Read from _limits (source of truth); fallback to 1
-      limits[sh][d]=(_limits[sh]&&_limits[sh][d]!==undefined)?_limits[sh][d]:1;
+      const v=(_limits[sh]&&_limits[sh][d]!==undefined)?_limits[sh][d]:{male:1,female:1};
+      limits[sh][d]=v;
     });
   });
   const dateTypes={..._dateTypes};
@@ -1897,17 +1921,32 @@ function renderPeriods(){
         </div>
       </div>
       <div style="overflow-x:auto;"><table style="font-size:.7rem;width:auto;">
-        <thead><tr>
-          <th style="text-align:left;padding:4px 9px;font-size:.55rem;white-space:nowrap;">班別＼日期</th>
-          ${dates.map(d=>{
-            const t=dt[d]||(isWk(d)?'holiday':'weekday');
-            const col=t==='holiday'?'var(--accent)':t==='closed'?'var(--red)':'';
-            return `<th style="text-align:center;padding:4px 3px;font-size:.54rem;min-width:48px;color:${col};">${fd(d)}<br><span style="font-weight:400;">${TYPE_LABELS[t]}</span></th>`;
-          }).join('')}
-        </tr></thead>
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:4px 9px;font-size:.55rem;white-space:nowrap;" rowspan="2">班別＼日期</th>
+            ${dates.map(d=>{
+              const t=dt[d]||(isWk(d)?'holiday':'weekday');
+              const col=t==='holiday'?'var(--accent)':t==='closed'?'var(--red)':'';
+              return `<th colspan="2" style="text-align:center;padding:4px 3px;font-size:.54rem;min-width:64px;color:${col};">${fd(d)}<br><span style="font-weight:400;">${TYPE_LABELS[t]}</span></th>`;
+            }).join('')}
+          </tr>
+          <tr>
+            ${dates.map(d=>{
+              const t=dt[d]||(isWk(d)?'holiday':'weekday');
+              const bg=t==='closed'?'rgba(232,74,74,.07)':t==='holiday'?'rgba(232,200,74,.06)':'';
+              return `<th style="text-align:center;padding:2px 3px;font-size:.52rem;color:#7ab4f0;${bg?'background:'+bg:''};font-weight:400;">足</th><th style="text-align:center;padding:2px 3px;font-size:.52rem;color:#f07ab4;${bg?'background:'+bg:''};font-weight:400;">體</th>`;
+            }).join('')}
+          </tr>
+        </thead>
         <tbody>${shifts.map(sh=>`<tr>
           <td style="padding:4px 9px;white-space:nowrap;"><span class="badge b-yellow">${sh}</span></td>
-          ${dates.map(d=>{const lim=getLim(p,sh,d);return `<td style="text-align:center;padding:4px 3px;font-family:'Space Mono',monospace;font-size:.64rem;color:${lim===0?'var(--text-dim)':'var(--accent)'};">${lim===0?'✗':lim}</td>`;}).join('')}
+          ${dates.map(d=>{
+            const mLim=getLim(p,sh,d,'male');
+            const fLim=getLim(p,sh,d,'female');
+            const mStyle=`text-align:center;padding:3px 2px;font-family:'Space Mono',monospace;font-size:.62rem;color:${mLim===0?'var(--text-dim)':'#7ab4f0'};`;
+            const fStyle=`text-align:center;padding:3px 2px;font-family:'Space Mono',monospace;font-size:.62rem;color:${fLim===0?'var(--text-dim)':'#f07ab4'};`;
+            return `<td style="${mStyle}">${mLim===0?'✗':mLim}</td><td style="${fStyle}">${fLim===0?'✗':fLim}</td>`;
+          }).join('')}
         </tr>`).join('')}</tbody>
       </table></div>
     </div>`;
@@ -1939,22 +1978,30 @@ function editPeriod(id){
   // 還原 _dateTypes 和 _limits
   _dateTypes={...(p.dateTypes||{})};
   const dates=getDates(p.start,p.end);
-  dates.forEach(d=>{ if(!_dateTypes[d]) _dateTypes[d]=isWk(d)?'holiday':'weekday'; });
+  dates.forEach(d=>{ if(!_dateTypes[d]){ const n=new Date(d+'T00:00:00').getDay(); _dateTypes[d]=(n===5||n===6||n===0)?'holiday':'weekday'; }});
   _limits={};
   data.departments.forEach(sh=>{
     _limits[sh]={};
-    dates.forEach(d=>{ _limits[sh][d]=getLim(p,sh,d); });
+    dates.forEach(d=>{
+      const v=p.limits&&p.limits[sh]?p.limits[sh][d]:undefined;
+      if(v===undefined){_limits[sh][d]={male:1,female:1};return;}
+      if(typeof v==='object'&&v!==null){_limits[sh][d]=v;return;}
+      // 舊格式：單一數字，拆成各半
+      _limits[sh][d]={male:Math.ceil(v/2),female:Math.floor(v/2)};
+    });
   });
-  // 從現有 _limits 反推 _shiftDefaults（取平日/假日的眾數或第一個值）
+  // 從現有 limits 反推 _shiftDefaults
   _shiftDefaults={};
   data.departments.forEach(sh=>{
     const wdVals=dates.filter(d=>(_dateTypes[d]||'weekday')==='weekday').map(d=>_limits[sh][d]).filter(v=>v!==undefined);
     const hlVals=dates.filter(d=>(_dateTypes[d]||'weekday')==='holiday').map(d=>_limits[sh][d]).filter(v=>v!==undefined);
-    const wdTotal=wdVals.length?wdVals[0]:2;
-    const hlTotal=hlVals.length?hlVals[0]:2;
+    const extractM=v=>typeof v==='object'&&v?v.male??1:Math.ceil((v||2)/2);
+    const extractF=v=>typeof v==='object'&&v?v.female??1:Math.floor((v||2)/2);
     _shiftDefaults[sh]={
-      male_weekday:Math.ceil(wdTotal/2),male_holiday:Math.ceil(hlTotal/2),
-      female_weekday:Math.floor(wdTotal/2),female_holiday:Math.floor(hlTotal/2)
+      male_weekday:wdVals.length?extractM(wdVals[0]):1,
+      male_holiday:hlVals.length?extractM(hlVals[0]):1,
+      female_weekday:wdVals.length?extractF(wdVals[0]):1,
+      female_holiday:hlVals.length?extractF(hlVals[0]):1
     };
   });
 
@@ -1965,14 +2012,36 @@ function editPeriod(id){
   renderLimitTable(dates);
 
   // 切換按鈕為「更新」
-  const btn=document.querySelector('#panel-periods button.btn-primary[onclick="addPeriod()"]');
+  const btn=document.getElementById('btn-add-period');
   if(btn){ btn.textContent='更新假期'; btn.setAttribute('onclick','updatePeriod()'); }
+  const cancelBtn=document.getElementById('btn-cancel-edit-period');
+  if(cancelBtn) cancelBtn.style.display='';
 
   // 捲到頂部表單
   document.getElementById('period-name').scrollIntoView({behavior:'smooth',block:'center'});
   toast('已載入假期資料，修改後按「更新假期」儲存');
 }
 
+function cancelEditPeriod(){
+  // 還原按鈕狀態
+  const btn=document.getElementById('btn-add-period');
+  if(btn){ btn.textContent='新增假期'; btn.setAttribute('onclick','addPeriod()'); }
+  const cancelBtn=document.getElementById('btn-cancel-edit-period');
+  if(cancelBtn) cancelBtn.style.display='none';
+  // 清除表單和狀態
+  document.getElementById('period-name').value='';
+  document.getElementById('period-start').value='';
+  document.getElementById('period-end').value='';
+  document.getElementById('period-store').value='';
+  document.getElementById('period-setup-wrap').style.display='none';
+  _dateTypes={}; _limits={}; _editingPeriodId=null;
+  _shiftDefaults={};
+  data.departments.forEach(sh=>{
+    _shiftDefaults[sh]={male_weekday:1,male_holiday:1,female_weekday:1,female_holiday:1};
+  });
+  renderShiftDefaults();
+  toast('✓ 已取消編輯');
+}
 function updatePeriod(){
   if(!_editingPeriodId)return addPeriod();
   const name=document.getElementById('period-name').value.trim();
@@ -1984,7 +2053,7 @@ function updatePeriod(){
   const dates=getDates(start,end), shifts=data.departments, limits={};
   shifts.forEach(sh=>{
     limits[sh]={};
-    dates.forEach(d=>{ limits[sh][d]=(_limits[sh]&&_limits[sh][d]!==undefined)?_limits[sh][d]:1; });
+    dates.forEach(d=>{ limits[sh][d]=(_limits[sh]&&_limits[sh][d]!==undefined)?_limits[sh][d]:{male:1,female:1}; });
   });
   const dateTypes={..._dateTypes};
   const genderRestrict='';
@@ -2001,9 +2070,16 @@ function updatePeriod(){
   document.getElementById('period-setup-wrap').style.display='none';
   _dateTypes={}; _limits={}; _shiftDefaults={}; _editingPeriodId=null;
 
-  const btn=document.querySelector('#panel-periods button[onclick="updatePeriod()"]');
+  const btn=document.getElementById('btn-add-period');
   if(btn){ btn.textContent='新增假期'; btn.setAttribute('onclick','addPeriod()'); }
+  const cancelBtn=document.getElementById('btn-cancel-edit-period');
+  if(cancelBtn) cancelBtn.style.display='none';
 
+  _shiftDefaults={};
+  data.departments.forEach(sh=>{
+    _shiftDefaults[sh]={male_weekday:1,male_holiday:1,female_weekday:1,female_holiday:1};
+  });
+  renderShiftDefaults();
   toast('✓ 假期已更新');
 }
 
@@ -4084,14 +4160,29 @@ function renderAccounts(){
         </div>
       </div>`).join('');
   }
+  const sel=document.getElementById('pin-emp-select');
+  if(sel){
+    sel.innerHTML='<option value="">-- 選擇員工 --</option>';
+    const sorted=[...data.employees].sort((a,b)=>{
+      const sa=(a.store||'竹北店')==='竹北店'?0:1;
+      const sb=(b.store||'竹北店')==='竹北店'?0:1;
+      if(sa!==sb)return sa-sb;
+      const ga=(a.gender||'male')==='male'?0:1;
+      const gb=(b.gender||'male')==='male'?0:1;
+      if(ga!==gb)return ga-gb;
+      return (a.order??0)-(b.order??0);
+    });
+    sorted.forEach(e=>{
+      const o=document.createElement('option');
+      o.value=e.id;
+      o.textContent=`${e.name}（${e.store||'竹北店'}・${e.dept}）`;
+      sel.appendChild(o);
+    });
+  }
   const pinStore=document.getElementById('pin-store-select');
   if(pinStore) pinStore.value='';
-  const pinEmpField=document.getElementById('pin-emp-field');
-  if(pinEmpField) pinEmpField.style.display='none';
-  const sel=document.getElementById('pin-emp-select');
-  sel.innerHTML='<option value="">-- 選擇員工 --</option>';
   const pinCurrent=document.getElementById('pin-current');
-  if(pinCurrent) pinCurrent.textContent='';
+  if(pinCurrent){pinCurrent.textContent='--先選擇員工--';pinCurrent.style.color='var(--text-dim)';}
   const pinInput=document.getElementById('pin-set-input');
   if(pinInput) pinInput.value='';
 }
@@ -4163,24 +4254,37 @@ function saveEditAdmin(){
 }
 function onPinStoreChange(){
   const store=document.getElementById('pin-store-select').value;
-  const empField=document.getElementById('pin-emp-field');
   const sel=document.getElementById('pin-emp-select');
   const info=document.getElementById('pin-current');
   const input=document.getElementById('pin-set-input');
-  if(info) info.textContent='';
+  if(info){info.textContent='--先選擇員工--';info.style.color='var(--text-dim)';}
   if(input) input.value='';
-  if(!store){ empField.style.display='none'; sel.innerHTML='<option value="">-- 選擇員工 --</option>'; return; }
-  const emps=data.employees.filter(e=>(e.store||'竹北店')===store);
   sel.innerHTML='<option value="">-- 選擇員工 --</option>';
-  emps.forEach(e=>{ const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name}（${e.dept}）`;sel.appendChild(o); });
-  empField.style.display='block';
+  const emps=store
+    ? data.employees.filter(e=>(e.store||'竹北店')===store)
+    : data.employees;
+  const sorted=[...emps].sort((a,b)=>{
+    const sa=(a.store||'竹北店')==='竹北店'?0:1;
+    const sb=(b.store||'竹北店')==='竹北店'?0:1;
+    if(sa!==sb)return sa-sb;
+    const ga=(a.gender||'male')==='male'?0:1;
+    const gb=(b.gender||'male')==='male'?0:1;
+    if(ga!==gb)return ga-gb;
+    return (a.order??0)-(b.order??0);
+  });
+  sorted.forEach(e=>{
+    const o=document.createElement('option');
+    o.value=e.id;
+    o.textContent=store?`${e.name}（${e.dept}）`:`${e.name}（${e.store||'竹北店'}・${e.dept}）`;
+    sel.appendChild(o);
+  });
 }
 function onPinEmpChange(){
   const eid=parseInt(document.getElementById('pin-emp-select').value);
   const emp=data.employees.find(e=>e.id===eid);
   const info=document.getElementById('pin-current');
   const input=document.getElementById('pin-set-input');
-  if(!emp){info.textContent='';if(input)input.value='';return;}
+  if(!emp){info.textContent='--先選擇員工--';info.style.color='var(--text-dim)';if(input)input.value='';return;}
   info.innerHTML=emp.pin
     ?`<span style="color:var(--green);">✓ 已設定 密碼</span>`
     :`<span style="color:var(--text-dim);">尚未設定</span>`;
