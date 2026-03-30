@@ -28,6 +28,8 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Serif TC',serif;mi
 .mode-btn{padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);cursor:pointer;font-family:'Space Mono',monospace;font-size:.64rem;letter-spacing:.06em;background:transparent;color:var(--text-dim);transition:all .2s;}
 .mode-btn:hover{border-color:var(--text-dim);color:var(--text);}
 .mode-btn.active{background:var(--accent);border-color:var(--accent);color:#111;font-weight:700;}
+.apptab.active{color:var(--accent)!important;border-bottom:2px solid var(--accent)!important;}
+.apptab{color:var(--text-dim);border-bottom:2px solid transparent;}
 
 /* ── Tabs ── */
 .tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 28px;overflow-x:auto;}
@@ -536,7 +538,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <!-- 排假申請（管理員）→ 含三個子分頁 -->
     <div id="panel-applications" class="panel">
       <!-- 子分頁 tabs -->
-      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface2);padding:0 28px;">
+      <div style="display:flex;border-bottom:1px solid var(--border);padding:0 28px;">
         <button class="apptab active" id="apptab-apply" onclick="switchAppTab('apply')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">📋 排假申請管理</button>
         <button class="apptab" id="apptab-leave" onclick="switchAppTab('leave')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">🏖️ 請假申請管理</button>
         <button class="apptab" id="apptab-longLeave" onclick="switchAppTab('longLeave')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">🗓️ 長假申請管理</button>
@@ -833,15 +835,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
     <!-- 櫃檯管理 -->
     <div id="panel-counter" class="panel">
-      <div class="section-title">櫃檯管理</div>
       <!-- 子分頁列 -->
-      <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
-        <button class="apptab active" id="ctab-leave" onclick="switchCounterTab('leave')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">📋 櫃檯排假</button>
-        <button class="apptab" id="ctab-staff" onclick="switchCounterTab('staff')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">👥 櫃檯人員</button>
+      <div style="display:flex;border-bottom:1px solid var(--border);padding:0 28px;margin-bottom:16px;">
+        <button class="apptab active" id="ctab-staff" onclick="switchCounterTab('staff')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">👥 櫃檯人員</button>
+        <button class="apptab" id="ctab-leave" onclick="switchCounterTab('leave')" style="padding:10px 18px;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--text-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;">📋 櫃檯排假</button>
       </div>
 
-      <!-- 子分頁：櫃檯排假 -->
-      <div id="cpanel-leave">
+      <!-- 子分頁：櫃檯排假（預設隱藏） -->
+      <div id="cpanel-leave" style="display:none;">
         <div class="card">
           <div class="section-title">選擇管理員與假期</div>
           <div class="grid-2">
@@ -870,7 +871,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
 
       <!-- 子分頁：櫃檯人員 -->
-      <div id="cpanel-staff" style="display:none;">
+      <div id="cpanel-staff">
         <div class="card">
           <div class="section-title">設定櫃檯班別</div>
           <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--text-dim);margin-bottom:14px;">
@@ -1514,7 +1515,7 @@ function switchTab(name){
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='employees'){renderDeptOptions();renderDeptList();renderEmployees();updateStats();}
   if(name==='periods'){renderPeriods();renderShiftDefaults();renderDailyLimitTable();}
-  if(name==='applications'){refreshAppSelects();renderApplications();refreshElSelects();renderExtraLeave();renderLongLeaves();renderDailyLimitTable();}
+  if(name==='applications'){switchAppTab('apply');refreshAppSelects();renderApplications();refreshElSelects();renderExtraLeave();renderLongLeaves();renderDailyLimitTable();}
   if(name==='lottery'){refreshLotterySelects();resetLottery();}
 
   if(name==='schedule'){initSchedule();}
@@ -3640,6 +3641,7 @@ function switchCounterTab(tab){
     }
   });
   if(tab==='staff') renderCounterStaff();
+  if(tab==='leave'){}
 }
 function initCounterPanel(){
   // 填入管理員選單（排除超級管理員）
@@ -3666,6 +3668,7 @@ function initCounterPanel(){
   });
   if(pcur) ps.value=pcur;
   renderCounterOverview();
+  switchCounterTab('staff');
 }
 function onCounterAdminChange(){
   // 重新選管理員時清除日期勾選
