@@ -868,6 +868,46 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="section-title" style="margin-bottom:10px;">排假申請總覽</div>
           <div id="counter-overview"></div>
         </div>
+
+        <!-- 班別調整 -->
+        <div class="card" style="margin-top:10px;">
+          <div class="section-title" style="margin-bottom:10px;">班別調整</div>
+          <div class="grid-2">
+            <div>
+              <div class="field"><label>管理員</label>
+                <select id="cso-admin" style="width:100%;"><option value="">-- 選擇管理員 --</option></select>
+              </div>
+              <div class="field"><label>選擇假期</label>
+                <select id="cso-period" onchange="onCsoPeriodChange()" style="width:100%;"><option value="">-- 選擇假期 --</option></select>
+              </div>
+              <div class="field"><label>班別</label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <select id="cso-shift" onchange="onCsoShiftChange()" style="padding:6px 10px;font-size:.78rem;">
+                    <option value="早">早班</option>
+                    <option value="中">中班</option>
+                    <option value="晚">晚班</option>
+                    <option value="custom">自訂時間</option>
+                  </select>
+                  <div id="cso-custom-wrap" style="display:none;gap:6px;align-items:center;">
+                    <input type="time" id="cso-custom-start" style="padding:5px;font-size:.78rem;">
+                    <span style="font-size:.78rem;">~</span>
+                    <input type="time" id="cso-custom-end" style="padding:5px;font-size:.78rem;">
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-primary" style="font-size:.72rem;padding:6px 14px;" onclick="addCounterShiftOverride()">儲存班別調整</button>
+            </div>
+            <div>
+              <div class="field"><label>申請日期（可多選）</label>
+                <div id="cso-dates-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:9px;min-height:80px;max-height:170px;overflow-y:auto;">
+                  <div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="section-title" style="margin:14px 0 8px;">班別調整總覽</div>
+          <div id="cso-overview"></div>
+        </div>
       </div>
 
       <!-- 子分頁：櫃檯人員 -->
@@ -1135,6 +1175,7 @@ function migrateData(d){
   if(!d.publishedSchedules) d.publishedSchedules=[];
   if(!d.counterApplications) d.counterApplications=[];
   if(!d.counterStaff) d.counterStaff=[];
+  if(!d.counterShiftOverrides) d.counterShiftOverrides=[];
   // 清除所有假期的職稱限制
   if(d.periods) d.periods.forEach(p=>{ p.genderRestrict=''; });
   if(!Array.isArray(d.longLeaves)) d.longLeaves=[];
@@ -3401,6 +3442,21 @@ function exportAttendanceExcel(){
   const statusMap=buildStatusMap(period);
   const ON_LEAVE=['lottery','direct','extra'];
 
+  // ── 櫃台人員（本假期有排假紀錄者，優先顯示）──
+  const counterApps=data.counterApplications||[];
+  const counterInPeriod=counterApps.filter(a=>a.periodId===pid);
+  const counterAdminIds=[...new Set(counterInPeriod.map(a=>a.adminId))];
+  const counterAdmins=counterAdminIds.map(aid=>{
+    const app=counterInPeriod.find(a=>a.adminId===aid);
+    const staffInfo=(data.counterStaff||[]).find(s=>s.adminId===aid);
+    return {id:aid,name:app.adminName,role:app.adminRole||'主管',shift:staffInfo?.shift||'早'};
+  });
+  const counterDateMap={};
+  counterInPeriod.forEach(a=>{
+    if(!counterDateMap[a.adminId]) counterDateMap[a.adminId]=new Set();
+    counterDateMap[a.adminId].add(a.date);
+  });
+
   // ── 篩選員工（依畫面篩選條件）──
   const allEmps=data.employees.filter(e=>{
     if(!shifts.includes(e.dept))return false;
@@ -3411,11 +3467,12 @@ function exportAttendanceExcel(){
   if(!allEmps.length)return toast('篩選條件下無員工',true);
 
   // ── 上班時段 offset（1=09:00…18=02:00）──
-  function getWorkOffsets(dept){
+  function getWorkOffsets(dept, isHoliday){
     const ch=dept.charAt(0);
     if(ch==='早') return new Set([1,2,3,4,5,6,7,8,9,10]);
     if(ch==='中') return new Set([4,5,6,7,8,9,10,11,12,13]);
-    if(ch==='晚') return new Set([6,7,8,9,10,11,12,13,14,15,16]);
+    // 晚班平日15:00~00:00，假日17:00~02:00
+    if(ch==='晚') return isHoliday ? new Set([9,10,11,12,13,14,15,16,17,18]) : new Set([7,8,9,10,11,12,13,14,15,16]);
     const m=dept.match(/(\d{1,2})[:\-](\d{1,2})/);
     if(m){
       const h2o={9:1,10:2,11:3,12:4,13:5,14:6,15:7,16:8,17:9,18:10,19:11,20:12,21:13,22:14,23:15,0:16,1:17,2:18};
@@ -3437,6 +3494,15 @@ function exportAttendanceExcel(){
   // 只在職稱切換時插入標題（全表僅出現一次足師標題、一次體師標題）
   // 職稱標題之間間隔2列空白
   const empRows=[];
+  // 優先插入櫃台人員
+  if(counterAdmins.length){
+    empRows.push({type:'title',label:'櫃台'});
+    counterAdmins.forEach(ca=>empRows.push({type:'counter',ca}));
+    if(sortedEmps.length){
+      empRows.push({type:'gap'});
+      empRows.push({type:'gap'});
+    }
+  }
   const seenGender=new Set();
   sortedEmps.forEach(emp=>{
     const g=emp.gender||'male';
@@ -3494,6 +3560,11 @@ function exportAttendanceExcel(){
     const colBase=colGroup*COL_BLOCK;
     const rowBase=dayInCol*DAY_BLOCK_ROWS;
 
+    // 判斷平日／假日（供 getWorkOffsets 使用）
+    const dt=period.dateTypes||{};
+    const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
+    const isWkd=dayType==='holiday';
+
     const dayNum=parseInt(d.slice(8));
     const dateStr=`${rocM}月${dayNum}日`;
 
@@ -3525,9 +3596,20 @@ function exportAttendanceExcel(){
         rows[rowIdx][colBase]=er.label;
         for(let c=0;c<COLS_PER_DAY;c++) cellStyles[rowIdx][colBase+c]=5;
         merges.push({sr:rowIdx+1,er:rowIdx+1,sc:colBase+1,ec:colBase+COLS_PER_DAY});
+      } else if(er.type==='counter'){
+        const ca=er.ca;
+        const workOffs=getWorkOffsets(ca.shift, isWkd);
+        const isOnLeave=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
+        rows[rowIdx][colBase]=ca.name;
+        cellStyles[rowIdx][colBase]=1;
+        for(let off=1;off<=18;off++){
+          const isWork=workOffs.has(off)&&!isOnLeave;
+          rows[rowIdx][colBase+off]=isWork?'':null;
+          cellStyles[rowIdx][colBase+off]=isWork?2:1;
+        }
       } else {
         const emp=er.emp;
-        const workOffs=getWorkOffsets(emp.dept);
+        const workOffs=getWorkOffsets(emp.dept, isWkd);
         const isOnLeave=ON_LEAVE.includes((statusMap[emp.id]||{})[d]);
         rows[rowIdx][colBase]=emp.name;
         cellStyles[rowIdx][colBase]=1;
@@ -3641,11 +3723,11 @@ function switchCounterTab(tab){
     }
   });
   if(tab==='staff') renderCounterStaff();
-  if(tab==='leave'){}
+  if(tab==='leave') renderCsoOverview();
 }
 function initCounterPanel(){
   // 填入管理員選單（排除超級管理員）
-  ['counter-admin','counter-staff-admin'].forEach(selId=>{
+  ['counter-admin','counter-staff-admin','cso-admin'].forEach(selId=>{
     const sel=document.getElementById(selId);
     if(!sel) return;
     const cur=sel.value;
@@ -3657,16 +3739,19 @@ function initCounterPanel(){
     });
     if(cur) sel.value=cur;
   });
-  // 填入假期選單
-  const ps=document.getElementById('counter-period');
-  const pcur=ps.value;
-  ps.innerHTML='<option value="">-- 選擇假期 --</option>';
-  data.periods.forEach(p=>{
-    const o=document.createElement('option');
-    o.value=p.id; o.textContent=`${p.name} (${p.start}～${p.end})`;
-    ps.appendChild(o);
+  // 填入假期選單（含班別調整用）
+  ['counter-period','cso-period'].forEach(selId=>{
+    const ps=document.getElementById(selId);
+    if(!ps) return;
+    const pcur=ps.value;
+    ps.innerHTML='<option value="">-- 選擇假期 --</option>';
+    data.periods.forEach(p=>{
+      const o=document.createElement('option');
+      o.value=p.id; o.textContent=`${p.name} (${p.start}～${p.end})`;
+      ps.appendChild(o);
+    });
+    if(pcur) ps.value=pcur;
   });
-  if(pcur) ps.value=pcur;
   renderCounterOverview();
   switchCounterTab('staff');
 }
@@ -3746,6 +3831,33 @@ function updateCounterStaffShift(aid, shift){
   const s=(data.counterStaff||[]).find(x=>x.adminId===aid);
   if(s){ s.shift=shift; save(); toast('✓ 已更新'); }
 }
+let _csDragIdx=null;
+function counterStaffDragStart(e,idx){
+  _csDragIdx=idx;
+  e.dataTransfer.effectAllowed='move';
+  e.currentTarget.style.opacity='0.4';
+}
+function counterStaffDragOver(e,idx){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  document.querySelectorAll('#counter-staff-list [data-csidx]').forEach((el,i)=>{
+    el.style.borderTop=i===idx&&_csDragIdx!==idx?'2px solid var(--accent)':'';
+  });
+}
+function counterStaffDrop(e,toIdx){
+  e.preventDefault();
+  document.querySelectorAll('#counter-staff-list [data-csidx]').forEach(el=>el.style.borderTop='');
+  if(_csDragIdx===null||_csDragIdx===toIdx)return;
+  const arr=data.counterStaff||[];
+  const [item]=arr.splice(_csDragIdx,1);
+  arr.splice(toIdx,0,item);
+  save();renderCounterStaff();toast('✓ 順序已更新');
+}
+function counterStaffDragEnd(e){
+  e.currentTarget.style.opacity='';
+  document.querySelectorAll('#counter-staff-list [data-csidx]').forEach(el=>el.style.borderTop='');
+  _csDragIdx=null;
+}
 function renderCounterStaff(){
   const el=document.getElementById('counter-staff-list');
   if(!el) return;
@@ -3759,11 +3871,19 @@ function renderCounterStaff(){
     中:'中班 13:00–22:00',
     晚:'晚班 15:00–24:00（平日）/ 17:00–02:00（假日）'
   };
-  el.innerHTML=staff.map(s=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
-      <div>
-        <span style="font-family:'Space Mono',monospace;font-size:.78rem;font-weight:600;">👤 ${s.adminName}</span>
-        <span style="font-size:.72rem;color:var(--text-dim);margin-left:8px;">${SHIFT_DESC[s.shift]||s.shift+'班'}</span>
+  el.innerHTML=staff.map((s,idx)=>`
+    <div draggable="true" data-csidx="${idx}"
+      ondragstart="counterStaffDragStart(event,${idx})"
+      ondragover="counterStaffDragOver(event,${idx})"
+      ondrop="counterStaffDrop(event,${idx})"
+      ondragend="counterStaffDragEnd(event)"
+      style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;cursor:grab;user-select:none;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="color:var(--text-dim);font-size:1rem;line-height:1;cursor:grab;" title="長按拖曳排序">⠿</span>
+        <div>
+          <span style="font-family:'Space Mono',monospace;font-size:.78rem;font-weight:600;">👤 ${s.adminName}</span>
+          <span style="font-size:.72rem;color:var(--text-dim);margin-left:8px;">${SHIFT_DESC[s.shift]||s.shift+'班'}</span>
+        </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
         <select onchange="updateCounterStaffShift('${s.adminId}',this.value)" style="padding:3px 7px;font-size:.72rem;">
@@ -3813,6 +3933,81 @@ function renderCounterOverview(){
     </div>`).join('');
 }
 
+
+// ── 班別調整 ──
+function onCsoPeriodChange(){
+  const pid=parseInt(document.getElementById('cso-period').value);
+  const p=data.periods.find(x=>x.id===pid);
+  const dw=document.getElementById('cso-dates-wrap');
+  if(!p){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>';return;}
+  const dates=getDates(p.start,p.end);
+  dw.innerHTML=dates.map(d=>`<label style="display:flex;align-items:center;gap:5px;font-size:.79rem;cursor:pointer;padding:2px 0;">
+    <input type="checkbox" id="csodate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"> ${fd(d)}
+  </label>`).join('');
+}
+function onCsoShiftChange(){
+  const v=document.getElementById('cso-shift').value;
+  document.getElementById('cso-custom-wrap').style.display=v==='custom'?'flex':'none';
+}
+function addCounterShiftOverride(){
+  const aid=document.getElementById('cso-admin').value;
+  const pid=parseInt(document.getElementById('cso-period').value);
+  const shift=document.getElementById('cso-shift').value;
+  if(!aid)return toast('請選擇管理員',true);
+  if(!pid)return toast('請選擇假期',true);
+  const p=data.periods.find(x=>x.id===pid);
+  if(!p)return;
+  const dates=getDates(p.start,p.end).filter(d=>document.getElementById('csodate_'+d)?.checked);
+  if(!dates.length)return toast('請至少勾選一個日期',true);
+  let customStart='',customEnd='';
+  if(shift==='custom'){
+    customStart=document.getElementById('cso-custom-start').value;
+    customEnd=document.getElementById('cso-custom-end').value;
+    if(!customStart||!customEnd)return toast('請輸入自訂時間',true);
+  }
+  if(!data.counterShiftOverrides) data.counterShiftOverrides=[];
+  let updated=0;
+  dates.forEach(d=>{
+    const ex=data.counterShiftOverrides.find(x=>x.adminId===aid&&x.date===d);
+    if(ex){ex.shift=shift;ex.customStart=customStart;ex.customEnd=customEnd;updated++;}
+    else{data.counterShiftOverrides.push({id:`cso_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,adminId:aid,date:d,shift,customStart,customEnd});updated++;}
+  });
+  save();renderCsoOverview();
+  document.querySelectorAll('#cso-dates-wrap input[type=checkbox]').forEach(cb=>cb.checked=false);
+  toast(`✓ 已設定 ${updated} 天班別調整`);
+}
+function removeCounterShiftOverride(id){
+  data.counterShiftOverrides=(data.counterShiftOverrides||[]).filter(x=>x.id!==id);
+  save();renderCsoOverview();toast('✓ 已刪除');
+}
+function renderCsoOverview(){
+  const el=document.getElementById('cso-overview');
+  if(!el)return;
+  const overrides=data.counterShiftOverrides||[];
+  if(!overrides.length){el.innerHTML='<div class="empty" style="padding:10px 0;font-size:.78rem;">尚無班別調整</div>';return;}
+  const grouped={};
+  overrides.forEach(x=>{
+    const admin=(data.admins||[]).find(a=>a.id===x.adminId);
+    const name=admin?.username||x.adminId;
+    if(!grouped[x.adminId]) grouped[x.adminId]={name,items:[]};
+    grouped[x.adminId].items.push(x);
+  });
+  el.innerHTML=Object.entries(grouped).map(([aid,g])=>`
+    <div class="app-shift-block" style="margin-bottom:6px;">
+      <div class="app-shift-hdr" onclick="this.parentElement.classList.toggle('open')">
+        <span style="font-family:'Space Mono',monospace;font-size:.72rem;font-weight:700;">👤 ${g.name}</span>
+        <span style="color:var(--text-dim);font-size:.78rem;">▾</span>
+      </div>
+      <div class="app-shift-body">
+        ${g.items.sort((a,b)=>a.date.localeCompare(b.date)).map(x=>`
+          <div class="day-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 0;">
+            <span style="font-family:'Space Mono',monospace;font-size:.74rem;">${fd(x.date)}</span>
+            <span class="badge b-blue" style="font-size:.62rem;">${x.shift==='custom'?`${x.customStart}~${x.customEnd}`:x.shift+'班'}</span>
+            <button class="btn btn-danger" style="padding:2px 8px;font-size:.58rem;" onclick="removeCounterShiftOverride('${x.id}')">刪除</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
 
 function onSchPeriodChange(){
   const pid=parseInt(document.getElementById('sch-period').value);
@@ -4087,7 +4282,21 @@ function renderSchedule(){
       // 櫃檯欄位（優先）
       counterAdmins.forEach((ca,i)=>{
         const isOff=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
-        html+=`<td class="${isOff?'cell-direct':''}" title="${isOff?'休假':''}" style="${i===0?'border-left:2px solid var(--border)':''}"><span class="cell-dot">${isOff?'●':''}</span></td>`;
+        let workLabel='';
+        if(!isOff){
+          const ovr=(data.counterShiftOverrides||[]).find(x=>x.adminId===ca.id&&x.date===d);
+          if(ovr){
+            workLabel=ovr.shift==='custom'
+              ?`${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
+              :ovr.shift;
+          } else {
+            const staffInfo=(data.counterStaff||[]).find(s=>s.adminId===ca.id);
+            workLabel=staffInfo?.shift||'';
+          }
+        }
+        const dot=isOff?'●':workLabel;
+        const dotStyle=!isOff&&workLabel?'font-size:.6rem;font-family:inherit;font-weight:600;':'';
+        html+=`<td class="${isOff?'cell-direct':''}" title="${isOff?'休假':workLabel?workLabel+'班':''}" style="${i===0?'border-left:2px solid var(--border)':''}"><span class="cell-dot" style="${dotStyle}">${dot}</span></td>`;
       });
       shifts.forEach(shift=>{
         const emps=allEmps.filter(e=>e.dept===shift);
@@ -4129,17 +4338,14 @@ function renderSchedule(){
     shifts.forEach(shift=>{
       const emps=data.employees.filter(e=>e.dept===shift);
       html+=`<div class="sch-shift-group"><div class="sch-shift-group-title">${shift}</div>`;
-      html+='<div style="overflow-x:auto;"><table class="sch-table" style="width:100%;"><thead><tr><th style="text-align:left;padding:5px 10px;min-width:70px;">日期</th><th style="text-align:center;">已/上限</th><th style="text-align:left;min-width:220px;">人員</th></tr></thead><tbody>';
+      html+='<div style="overflow-x:auto;"><table class="sch-table" style="width:100%;"><thead><tr><th style="text-align:left;padding:5px 10px;min-width:70px;">日期</th><th style="text-align:left;min-width:220px;">人員</th></tr></thead><tbody>';
       dates.forEach(d=>{
-        const lim=getLim(period,shift,d);if(lim===0)return;
-        const confirmed=getConfirmedOnDate(period,shift,d);
-        const isFull=confirmed>=lim;
+        const lim=getLim(period,shift,d);
         const onLeave=emps.filter(emp=>ON_LEAVE.includes((statusMap[emp.id]||{})[d]));
         const losers=emps.filter(emp=>(statusMap[emp.id]||{})[d]==='loser');
         const pending=emps.filter(emp=>(statusMap[emp.id]||{})[d]==='pending');
         html+=`<tr>
           <td style="padding:5px 10px;font-family:'Space Mono',monospace;font-size:.68rem;${isWk(d)?'color:var(--accent2)':''}">${fd(d)}</td>
-          <td style="text-align:center;font-family:'Space Mono',monospace;font-size:.7rem;color:${isFull?'var(--red)':'var(--green)'};">${confirmed}/${lim}${isFull?' 🔒':''}</td>
           <td style="padding:5px 8px;">
             ${onLeave.map(emp=>`<span class="badge ${(statusMap[emp.id]||{})[d]==='lottery'?'b-green':'b-blue'}" style="margin:2px;">${emp.name}</span>`).join('')}
             ${losers.map(emp=>`<span class="badge cell-loser" style="margin:2px;opacity:.7;">${emp.name}</span>`).join('')}
