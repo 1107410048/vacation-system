@@ -856,6 +856,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
               </div>
               <div class="field"><label>班別</label>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <select id="cso-store" style="padding:6px 10px;font-size:.78rem;">
+                    <option value="竹北店">竹北店</option>
+                    <option value="關新店">關新店</option>
+                  </select>
                   <select id="cso-shift" onchange="onCsoShiftChange()" style="padding:6px 10px;font-size:.78rem;">
                     <option value="早">早班</option>
                     <option value="中">中班</option>
@@ -3509,7 +3513,8 @@ function exportScheduleExcel(){
       if(filterStore&&(e.store||'竹北店')!==filterStore)return false;
       return true;
     });
-    const shifts=data.departments;
+    const _shiftPri=s=>{if(s==='早班')return 0;if(s==='早中班')return 1;if(s==='中班')return 2;if(s==='晚班')return 3;return 99;};
+    const shifts=[...data.departments].sort((a,b)=>_shiftPri(a)-_shiftPri(b));
     const shiftEmps=shifts.map(sh=>({shift:sh,emps:allEmps.filter(e=>e.dept===sh)})).filter(x=>x.emps.length);
     const totalEmpCols=shiftEmps.reduce((s,x)=>s+x.emps.length,0);
     const statShifts=shiftEmps.map(x=>x.shift);
@@ -3565,12 +3570,16 @@ function exportScheduleExcel(){
       counterDateMap[a.adminId].add(a.date);
     });
     const overrideMap={};
-    (data.counterShiftOverrides||[]).filter(x=>dates.includes(x.date)).forEach(x=>{
-      if(!overrideMap[x.adminId])overrideMap[x.adminId]={};
-      overrideMap[x.adminId][x.date]=x.shift==='custom'?`${x.customStart}-${x.customEnd}`:x.shift;
-    });
     // 店別前綴：竹北店→竹、關新店→關、無→空
     const _sp=s=>s==='竹北店'?'竹':s==='關新店'?'關':'';
+    (data.counterShiftOverrides||[]).filter(x=>dates.includes(x.date)).forEach(x=>{
+      if(!overrideMap[x.adminId])overrideMap[x.adminId]={};
+      const _ovSi=(data.counterStaff||[]).find(s=>s.adminId===x.adminId);
+      const _ovDef=_ovSi?.store||'';
+      const _ovStr=x.store||'';
+      const _ovPfx=(_ovStr&&_ovStr!==_ovDef)?_sp(_ovStr):'';
+      overrideMap[x.adminId][x.date]=x.shift==='custom'?`${_ovPfx}${x.customStart}-${x.customEnd}`:_ovPfx+x.shift;
+    });
     const _shiftLabel=ca=>(_sp(ca.store||''))+(ca.shift||'');
     const n=counterAdmins.length;
     const rows=[];
@@ -4223,6 +4232,7 @@ function addCounterShiftOverride(){
   const aid=document.getElementById('cso-admin').value;
   const pid=parseInt(document.getElementById('cso-period').value);
   const shift=document.getElementById('cso-shift').value;
+  const csoStore=document.getElementById('cso-store')?.value||'';
   if(!aid)return toast('請選擇管理員',true);
   if(!pid)return toast('請選擇假期',true);
   const p=data.periods.find(x=>x.id===pid);
@@ -4244,8 +4254,8 @@ function addCounterShiftOverride(){
     if((data.counterApplications||[]).length<prevLeaveLen) cancelledLeave++;
     // 儲存或更新班別調整
     const ex=data.counterShiftOverrides.find(x=>x.adminId===aid&&x.date===d);
-    if(ex){ex.shift=shift;ex.customStart=customStart;ex.customEnd=customEnd;updated++;}
-    else{data.counterShiftOverrides.push({id:`cso_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,adminId:aid,date:d,shift,customStart,customEnd});updated++;}
+    if(ex){ex.shift=shift;ex.customStart=customStart;ex.customEnd=customEnd;ex.store=csoStore;updated++;}
+    else{data.counterShiftOverrides.push({id:`cso_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,adminId:aid,date:d,shift,customStart,customEnd,store:csoStore});updated++;}
   });
   save();renderCsoOverview();renderCounterOverview();refreshCounterPreviews();
   document.querySelectorAll('#cso-dates-wrap input[type=checkbox]').forEach(cb=>cb.checked=false);
@@ -4291,12 +4301,19 @@ function renderCsoOverview(){
         <span style="color:var(--text-dim);font-size:.78rem;">▾</span>
       </div>
       <div class="app-shift-body">
-        ${g.items.sort((a,b)=>a.date.localeCompare(b.date)).map(x=>`
-          <div class="day-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 0;">
+        ${g.items.sort((a,b)=>a.date.localeCompare(b.date)).map(x=>{
+          const _csoSp=s=>s==='竹北店'?'竹':s==='關新店'?'關':'';
+          const _csoSi=(data.counterStaff||[]).find(s=>s.adminId===x.adminId);
+          const _csoDef=_csoSi?.store||'';
+          const _csoOvr=x.store||'';
+          const _csoPfx=(_csoOvr&&_csoOvr!==_csoDef)?_csoSp(_csoOvr):'';
+          const _csoLbl=x.shift==='custom'?`${_csoPfx}${x.customStart}~${x.customEnd}`:_csoPfx+x.shift+'班';
+          return `<div class="day-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 0;">
             <span style="font-family:'Space Mono',monospace;font-size:.74rem;">${fd(x.date)}</span>
-            <span class="badge b-blue" style="font-size:.62rem;">${x.shift==='custom'?`${x.customStart}~${x.customEnd}`:x.shift+'班'}</span>
+            <span class="badge b-blue" style="font-size:.62rem;">${_csoLbl}</span>
             <button class="btn btn-danger" style="padding:2px 8px;font-size:.58rem;" onclick="removeCounterShiftOverride('${x.id}')">刪除</button>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>
     </div>`).join('');
   el.scrollTop=scrollTop;
@@ -4338,9 +4355,13 @@ function renderCounterPreview(periodId, containerId){
       if(!isOff){
         const ovr=(data.counterShiftOverrides||[]).find(x=>x.adminId===s.adminId&&x.date===d);
         if(ovr){
+          const _cpSp=st=>st==='竹北店'?'竹':st==='關新店'?'關':'';
+          const _cpDef=s.store||'';
+          const _cpOvr=ovr.store||'';
+          const _cpPfx=(_cpOvr&&_cpOvr!==_cpDef)?_cpSp(_cpOvr):'';
           label=ovr.shift==='custom'
-            ?`${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
-            :ovr.shift;
+            ?`${_cpPfx}${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
+            :_cpPfx+ovr.shift;
         } else {
           label=s.shift||'';
         }
@@ -4615,20 +4636,8 @@ function renderSchedule(){
       const dayType=dt[d]||(isWk(d)?'holiday':'weekday');
       const isWkd=dayType==='holiday';
       const isClosed=dayType==='closed';
-      // Build shift limit summary for this date
-      let shiftLimSummary='';
-      shifts.forEach(shift=>{
-        const emps=allEmps.filter(e=>e.dept===shift);
-        if(!emps.length)return;
-        const lim=getLim(period,shift,d);
-        const confirmed=getConfirmedOnDate(period,shift,d);
-        const isFull=lim>0&&confirmed>=lim;
-        const limLabel=lim===0?'—':`${confirmed}/${lim}${isFull?'🔒':''}`;
-        const limColor=lim===0?'var(--text-dim)':isFull?'var(--red)':'var(--green)';
-        shiftLimSummary+=`<span style="font-family:'Space Mono',monospace;font-size:.58rem;color:${limColor};margin-right:8px;">${shift}:${limLabel}</span>`;
-      });
       const rowBg=isWkd?'background:rgba(232,200,74,.04);':isClosed?'background:rgba(232,74,74,.04);':'';
-      html+=`<tr${rowBg?` style="${rowBg}"`:''}><td style="padding:5px 10px;font-family:'Space Mono',monospace;font-size:.68rem;white-space:nowrap;${isWkd?'color:var(--accent2)':isClosed?'color:var(--red);opacity:.5':''}">${fd(d)}<br><span style="font-size:.55rem;color:var(--text-dim);">${shiftLimSummary}</span></td>`;
+      html+=`<tr${rowBg?` style="${rowBg}"`:''}><td style="padding:5px 10px;font-family:'Space Mono',monospace;font-size:.68rem;white-space:nowrap;${isWkd?'color:var(--accent2)':isClosed?'color:var(--red);opacity:.5':''}">${fd(d)}</td>`;
       // 櫃檯欄位（優先）
       counterAdmins.forEach((ca,i)=>{
         const isOff=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
@@ -4636,9 +4645,14 @@ function renderSchedule(){
         if(!isOff){
           const ovr=(data.counterShiftOverrides||[]).find(x=>x.adminId===ca.id&&x.date===d);
           if(ovr){
+            const _ovrSi=(data.counterStaff||[]).find(s=>s.adminId===ca.id);
+            const _ovrSp=s=>s==='竹北店'?'竹':s==='關新店'?'關':'';
+            const _ovrDef=_ovrSi?.store||'';
+            const _ovrStr=ovr.store||'';
+            const _ovrPfx=(_ovrStr&&_ovrStr!==_ovrDef)?_ovrSp(_ovrStr):'';
             workLabel=ovr.shift==='custom'
-              ?`${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
-              :ovr.shift;
+              ?`${_ovrPfx}${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
+              :_ovrPfx+ovr.shift;
           } else {
             const staffInfo=(data.counterStaff||[]).find(s=>s.adminId===ca.id);
             const _sp=s=>s==='竹北店'?'竹':s==='關新店'?'關':'';
