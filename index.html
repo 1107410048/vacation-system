@@ -650,6 +650,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="flex-between">
             <div class="section-title" style="margin-bottom:0">請假申請列表</div>
             <div style="display:flex;gap:7px;flex-wrap:wrap;">
+              <select id="el-filter-period" onchange="renderExtraLeave()" style="width:130px;padding:5px 9px;font-size:.72rem;"><option value="">全部假期</option></select>
               <select id="el-filter-store" onchange="onElFilterStoreChange()" style="width:110px;padding:5px 9px;font-size:.72rem;">
                 <option value="">全部店別</option>
                 <option value="竹北店">竹北店</option>
@@ -2661,7 +2662,7 @@ function removeApplication(periodId,empId,date){
 
 // ── Admin application UI ──
 function refreshAppSelects(){
-  ['app-period','app-filter-period','proxy-el-period','ll-period'].forEach(id=>{
+  ['app-period','app-filter-period','proxy-el-period','ll-period','el-filter-period'].forEach(id=>{
     const s=document.getElementById(id);if(!s)return;
     const c=s.value,isF=id.includes('filter');
     s.innerHTML=isF?'<option value="">全部假期</option>':'<option value="">-- 選擇假期 --</option>';
@@ -3977,6 +3978,7 @@ function onElFilterStoreChange(){
   renderExtraLeave();
 }
 function renderExtraLeave(){
+  const filterPeriod=parseInt(document.getElementById('el-filter-period')?.value)||0;
   const filterStore=document.getElementById('el-filter-store')?.value||'';
   const filterEmp=parseInt(document.getElementById('el-filter-emp')?.value)||0;
   const filterStatus=document.getElementById('el-filter-status')?.value||'';
@@ -3984,6 +3986,7 @@ function renderExtraLeave(){
   const el=document.getElementById('el-list');
   const leaves=data.extraLeaves||[];
   let list=leaves;
+  if(filterPeriod){const fp=data.periods.find(p=>p.id===filterPeriod);if(fp) list=list.filter(l=>l.date>=fp.start&&l.date<=fp.end);}
   if(filterStore) list=list.filter(l=>{const emp=data.employees.find(e=>e.id===l.empId);return (emp?.store||'竹北店')===filterStore;});
   if(filterEmp) list=list.filter(l=>l.empId===filterEmp);
   if(filterStatus) list=list.filter(l=>l.status===filterStatus);
@@ -6984,23 +6987,28 @@ function getLeaveConflicts(empId, dates, periodId){
     if((data.extraLeaves||[]).some(l=>l.empId===empId&&l.date===date&&l.status!=='rejected')){
       conflicts.push({date,type:'請假'});return;
     }
-    // 排假（含 loser）：只在指定假期內檢查，若未指定則找第一個涵蓋該日的假期
-    const period=periodId
-      ? data.periods.find(p=>p.id===periodId)
-      : data.periods.find(p=>p.start<=date&&date<=p.end);
-    if(period&&period.start<=date&&date<=period.end){
-      const st=(buildStatusMap(period)[empId]||{})[date];
-      if(st&&st!=='extra'&&st!=='el-pending'){conflicts.push({date,type:'排假'});return;}
-      // loser 未被 statusMap 抓到時，補查 history
-      const empGender=emp.gender||'male';
-      const hRec=data.history.find(h=>
-        ((h.periodId===period.id)||(h.periodName===period.name&&h.periodStart===period.start))
+    // 排假：直接查 applications，若有 periodId 限制只查該假期
+    const periods=periodId
+      ? data.periods.filter(p=>p.id===periodId)
+      : data.periods.filter(p=>p.start<=date&&date<=p.end);
+    const hasApp=periods.some(p=>
+      data.applications.some(a=>a.periodId===p.id&&a.empId===empId&&a.dates.includes(date))
+    );
+    if(hasApp){conflicts.push({date,type:'排假'});return;}
+    // 排假（未中籤 loser）：查 history losers
+    const empGender=emp.gender||'male';
+    const checkPeriods=periodId
+      ? data.periods.filter(p=>p.id===periodId)
+      : data.periods.filter(p=>p.start<=date&&date<=p.end);
+    const isLoser=checkPeriods.some(p=>
+      data.history.some(h=>
+        ((h.periodId===p.id)||(h.periodName===p.name&&h.periodStart===p.start))
         &&h.shift===emp.dept&&h.date===date&&!h.type
         &&(h.gender===empGender||h.gender===undefined)
-      );
-      if(hRec&&hRec.losers.some(w=>w.name===emp.name&&w.dept===emp.dept))
-        {conflicts.push({date,type:'排假（未中籤）'});return;}
-    }
+        &&h.losers.some(w=>w.name===emp.name&&w.dept===emp.dept)
+      )
+    );
+    if(isLoser){conflicts.push({date,type:'排假（未中籤）'});return;}
   });
   return conflicts;
 }
