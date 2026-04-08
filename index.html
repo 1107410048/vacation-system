@@ -2725,16 +2725,32 @@ function renderProxyElDateGrid(){
       const dt=new Date(d+'T00:00:00');
       const dow=dt.getDay();
       const isWkd=dow===0||dow===6;
+      const lim=emp&&p?getLim(p,emp.dept,d):1;
+      const closed=lim===0;
+      const onLL=emp?isOnLongLeave(eid,d):false;
+      // 排假狀態
+      const st=emp&&p?(buildStatusMap(p)[eid]||{})[d]:null;
+      const hasSched=emp&&pid?data.applications.some(a=>a.periodId===pid&&a.empId===eid&&a.dates.includes(d)):false;
+      // 抽籤完畢且名額已滿判斷
+      const empGender=emp?emp.gender||'male':null;
+      const hRec=emp&&p?data.history.find(h=>
+        ((h.periodId===pid)||(h.periodName===p.name&&h.periodStart===p.start))
+        &&h.shift===emp.dept&&h.date===d&&!h.type
+        &&(h.gender===empGender||h.gender===undefined)
+      ):null;
+      const alreadyWinner=hRec?hRec.winners.some(w=>w.name===emp.name&&w.dept===emp.dept):false;
+      const lotteryFull=!alreadyWinner&&hRec&&hRec.winners.length>=hRec.limit;
+      // 請假狀態
       const elRec=(data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===d&&l.status!=='rejected');
       const elStatus=elRec?elRec.status:null;
-      const onLL=emp?isOnLongLeave(eid,d):false;
-      const hasSched=emp?hasScheduledLeave(eid,d):false;
-      // 已請假 disable（不可再請），長假 disable，未選員工 disable
-      const disabled=!eid||onLL||(elStatus==='approved');
+
+      const disabled=!eid||closed||onLL||(elStatus==='approved')||(lotteryFull&&!hasSched);
       let cellStyle='',title='',dotHtml='';
 
       if(!eid){
         cellStyle='color:var(--text-dim);opacity:.38;cursor:default;';
+      } else if(closed){
+        cellStyle='color:var(--text-dim);opacity:.38;cursor:default;';title='不開放';
       } else if(onLL){
         cellStyle='background:rgba(192,132,240,.1);color:#c084f0;opacity:.6;cursor:default;border-radius:3px;';title='長假中';
         dotHtml='<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">長</div>';
@@ -2744,22 +2760,24 @@ function renderProxyElDateGrid(){
         dotHtml='<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">請</div>';
       } else if(elStatus==='pending'){
         cellStyle='background:rgba(232,122,74,.1);color:var(--accent2);cursor:pointer;border-radius:3px;';
-        title='請假待審（點選可重新申請）';
+        title='請假待審';
         dotHtml='<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">審</div>';
+      } else if(lotteryFull&&!hasSched){
+        cellStyle='color:var(--text-dim);opacity:.38;cursor:default;';title='抽籤已滿';
+        dotHtml='<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">滿</div>';
       } else if(hasSched){
-        const empStatus=emp?(buildStatusMap(p)[eid]||{}):{};
-        const st=empStatus[d];
-        const schedBg={lottery:'rgba(74,232,122,.2)',direct:'rgba(122,180,240,.2)','needs-lottery':'rgba(232,122,74,.15)',pending:'rgba(232,200,74,.12)'};
-        const schedFg={lottery:'var(--green)',direct:'#7ab4f0','needs-lottery':'var(--accent2)',pending:'var(--accent)'};
-        const schedTitle={lottery:'已中籤',direct:'直接錄取','needs-lottery':'超限待抽籤',pending:'申請中'};
-        const schedLabel={lottery:'休',direct:'休','needs-lottery':'待',pending:'申'};
-        const bg=schedBg[st]||'rgba(122,180,240,.15)';
-        const fg=schedFg[st]||'#7ab4f0';
-        const tl=schedTitle[st]||'已排假';
-        const lbl=schedLabel[st]||'排';
-        cellStyle=`background:${bg};color:${fg};cursor:pointer;border-radius:3px;`;
-        title=`${tl}（點選可改為請假）`;
-        dotHtml=`<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">${lbl}</div>`;
+        const stBg={lottery:'rgba(74,232,122,.2)',direct:'rgba(122,180,240,.2)','needs-lottery':'rgba(232,122,74,.15)',loser:'',pending:'rgba(232,200,74,.12)'};
+        const stFg={lottery:'var(--green)',direct:'#7ab4f0','needs-lottery':'var(--accent2)',loser:'var(--text-dim)',pending:'var(--accent)'};
+        const stTitle={lottery:'已中籤',direct:'直接錄取','needs-lottery':'超限待抽籤',loser:'未中籤',pending:'申請中'};
+        const stLabel={lottery:'休',direct:'休','needs-lottery':'待',loser:'',pending:'申'};
+        const bg=stBg[st]!==undefined?stBg[st]:'rgba(122,180,240,.15)';
+        const fg=stFg[st]||'#7ab4f0';
+        const tl=stTitle[st]||'已排假';
+        const lbl=stLabel[st]!==undefined?stLabel[st]:'排';
+        const isLoser=st==='loser';
+        cellStyle=`${bg?`background:${bg};`:''}color:${fg};${isLoser?'opacity:.45;':'font-weight:700;'}cursor:pointer;border-radius:3px;`;
+        title=tl;
+        dotHtml=lbl?`<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">${lbl}</div>`:'';
       } else {
         cellStyle=isWkd?'color:var(--accent);cursor:pointer;':'color:var(--text);cursor:pointer;';
       }
