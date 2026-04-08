@@ -4381,7 +4381,7 @@ ${sheetDefs.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" Cont
 <cellStyleXfs count="1">
  <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
 </cellStyleXfs>
-<cellXfs count="32">
+<cellXfs count="24">
  <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
  <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
  <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
@@ -4402,20 +4402,13 @@ ${sheetDefs.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" Cont
  <xf numFmtId="0" fontId="0" fillId="0" borderId="13" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
  <xf numFmtId="0" fontId="0" fillId="0" borderId="14" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
  <xf numFmtId="0" fontId="0" fillId="0" borderId="15" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
-</cellXfs>
  <xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="0" fillId="3" borderId="3" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="1" fillId="3" borderId="3" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
+ <xf numFmtId="0" fontId="0" fillId="3" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
  <xf numFmtId="0" fontId="0" fillId="3" borderId="5" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="1" fillId="3" borderId="5" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="0" fillId="3" borderId="7" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="0" fillId="3" borderId="8" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
  <xf numFmtId="0" fontId="0" fillId="3" borderId="12" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="0" fillId="3" borderId="15" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
- <xf numFmtId="0" fontId="0" fillId="3" borderId="16" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="middle"/></xf>
+</cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
-</styleSheet>`;
+</styleSheet>`;;;
       // shared strings across ALL sheets
       const ssMap={},ssArr=[];let ssCount=0;
       function ssi(v){const k=String(v);if(ssMap[k]===undefined){ssMap[k]=ssArr.length;ssArr.push(k);}ssCount++;return ssMap[k];}
@@ -4546,7 +4539,7 @@ function exportScheduleExcel(){
       const isLoser=ri>=dataStartIdx&&ri<emptyRowIdx&&loserCells[ri-dataStartIdx]?.[ci];
       if(ri===nameHdrIdx){if(isAB)return 5;if(isF)return 9;if(isM)return 12;if(isL)return 17;}
       if(ri>=dataStartIdx&&ri<emptyRowIdx){
-        if(isLoser){if(isAB)return 23;if(isF)return isHol?28:27;if(isM)return 21;if(isL)return isHol?31:30;}
+        if(isLoser){if(isAB)return 21;if(isF)return 22;if(isM)return 20;if(isL)return 23;}
         if(isAB)return isHol?4:3;if(isF)return isHol?8:7;if(isM)return isHol?2:1;if(isL)return isHol?16:15;
       }
       if(ri===emptyRowIdx){if(isAB)return 3;if(isF)return 10;if(isM)return 13;if(isL)return 18;}
