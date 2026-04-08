@@ -2589,9 +2589,13 @@ function _addAppCore(periodId,empId,dates){
   }
   const blocked=dates.filter(d=>getLim(p,emp.dept,d)===0);
   if(blocked.length)return{ok:false,msg:`${emp.dept}以下日期不開放：${blocked.map(fd).join('、')}`};
-  // 長假衝突檢查
-  const llBlocked=dates.filter(d=>isOnLongLeave(empId,d));
-  if(llBlocked.length)return{ok:false,msg:`以下日期員工正在長假中，無法申請排假：${llBlocked.map(fd).join('、')}`};
+  // 假別衝突檢查（排假/請假/長假不可重疊，需先取消原有假別）
+  const newOnlyDates=dates.filter(d=>{const ex=data.applications.find(a=>a.periodId===periodId&&a.empId===empId);return !ex||!ex.dates.includes(d);});
+  const leaveConflicts=getLeaveConflicts(empId,newOnlyDates);
+  if(leaveConflicts.length){
+    const items=leaveConflicts.map(c=>`${fd(c.date)}（${c.type}）`).join('、');
+    return{ok:false,msg:`以下日期已有其他假別，請先取消後再申請排假：${items}`};
+  }
   // 抽籤完畢且名額已滿檢查
   const gender=emp.gender||'male';
   const lotteryFull=dates.filter(d=>{
@@ -2775,7 +2779,10 @@ function onProxyElPeriodChange(){
   const prevStore=storeSel.value;
   storeSel.innerHTML='<option value="">-- 選擇店別 --</option>';
   allowedStores.forEach(s=>{const o=document.createElement('option');o.value=s.v;o.textContent=s.l;storeSel.appendChild(o);});
-  if(allowedStores.length===1){
+  if(p&&p.storeRestrict){
+    storeSel.value=p.storeRestrict;
+    onProxyElStoreChange();
+  } else if(allowedStores.length===1){
     storeSel.value=allowedStores[0].v;
     onProxyElStoreChange();
   } else {
@@ -2795,20 +2802,27 @@ function onLLPeriodChange(){
   const prevStore=storeSel.value;
   storeSel.innerHTML='<option value="">-- 選擇店別 --</option>';
   allowedStores.forEach(s=>{const o=document.createElement('option');o.value=s.v;o.textContent=s.l;storeSel.appendChild(o);});
-  if(allowedStores.length===1){
+  if(p&&p.storeRestrict){
+    storeSel.value=p.storeRestrict;
+    onLLStoreChange();
+  } else if(allowedStores.length===1){
     storeSel.value=allowedStores[0].v;
     onLLStoreChange();
   } else {
     if(prevStore&&allowedStores.some(s=>s.v===prevStore)) storeSel.value=prevStore;
     else { storeSel.value=''; onLLStoreChange(); }
   }
-  // 自動帶入日期範圍
+  // 自動帶入日期範圍，並限制 min/max
+  const llStart=document.getElementById('ll-start');
+  const llEnd=document.getElementById('ll-end');
   if(p){
-    document.getElementById('ll-start').value=p.start;
-    document.getElementById('ll-end').value=p.end;
+    llStart.min=p.start; llStart.max=p.end;
+    llEnd.min=p.start;   llEnd.max=p.end;
+    llStart.value=p.start;
+    llEnd.value=p.end;
   } else {
-    document.getElementById('ll-start').value='';
-    document.getElementById('ll-end').value='';
+    llStart.min=''; llStart.max=''; llStart.value='';
+    llEnd.min='';   llEnd.max='';   llEnd.value='';
   }
 }
 function onProxyElStoreChange(){
@@ -2856,18 +2870,17 @@ function addProxyExtraLeave(){
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return;
   if(!data.extraLeaves)data.extraLeaves=[];
-  let added=0, replaced=0, skipped=0, hasPromotion=false;
-  [..._proxyElSelectedDates].sort().forEach(date=>{
-    if(isOnLongLeave(eid,date)){skipped++;return;}
-    // 若有已核准的請假記錄則略過
+  const dates=[..._proxyElSelectedDates].sort();
+  // 假別衝突檢查
+  const newDates=dates.filter(d=>!(data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===d&&l.status!=='rejected'));
+  const conflicts=getLeaveConflicts(eid,newDates);
+  if(conflicts.length){
+    const items=conflicts.map(c=>`${fd(c.date)}（${c.type}）`).join('、');
+    return toast(`以下日期已有其他假別，請先取消後再申請請假：${items}`,true);
+  }
+  let added=0,skipped=0;
+  dates.forEach(date=>{
     if((data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected')){skipped++;return;}
-    // 若已排假，先取消再請假
-    const wasScheduled=hasScheduledLeave(eid,date);
-    if(wasScheduled){
-      const result=cancelScheduledLeaveForDate(eid,date);
-      replaced++;
-      if(result.needsPromotion.length) hasPromotion=true;
-    }
     data.extraLeaves.push({
       id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,
       empId:eid,empName:emp.name,shift:emp.dept,
@@ -2878,24 +2891,19 @@ function addProxyExtraLeave(){
     });
     added++;
   });
-  if(!added)return toast(skipped?'所選日期均已申請或長假中':'請點選日期',true);
+  if(!added)return toast(skipped?'所選日期均已申請':'請點選日期',true);
   save();
   _proxyElSelectedDates=new Set();
   document.getElementById('proxy-el-reason').value='';
   onProxyElEmpChange();
   refreshElSelects();renderExtraLeave();renderAppCancelDates();
   if(document.getElementById('panel-schedule').classList.contains('active'))renderSchedule();
-  // 更新抽籤分頁補籤預覽（若已開啟）
   if(document.getElementById('panel-lottery').classList.contains('active')){
     const pid=parseInt(document.getElementById('lottery-period').value);
     const lp=data.periods.find(x=>x.id===pid);
     if(lp) buildAllPreview(lp);
   }
-  let msg=`✓ ${emp.name} 已新增 ${added} 天請假`;
-  if(replaced) msg+=`（含 ${replaced} 天取消原排假）`;
-  if(skipped) msg+=`，${skipped} 天略過`;
-  if(hasPromotion) msg+=`；有中籤名額釋出，請至【抽籤】分頁進行補籤`;
-  toast(msg);
+  toast(`✓ ${emp.name} 已新增 ${added} 天請假${skipped?`，${skipped} 天略過`:''}`);
 }
 let _appSelectedDates=new Set();
 function renderAppDateGrid(){
@@ -2948,7 +2956,7 @@ function renderAppDateGrid(){
       const elRec=eid?(data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===d&&l.status!=='rejected'):null;
       const elStatus=elRec?elRec.status:null; // 'approved'|'pending'|null
 
-      let disabled=!eid||closed||onLL||lotteryFull;
+      let disabled=!eid||closed||onLL||(lotteryFull&&!(alreadyApplied&&st==='loser'));
       let cellStyle='',title='',dotHtml='';
 
       if(!eid){
@@ -2958,7 +2966,7 @@ function renderAppDateGrid(){
       } else if(onLL){
         cellStyle='color:#c084f0;opacity:.6;cursor:default;background:rgba(192,132,240,.1);border-radius:3px;';title='長假中';
         dotHtml='<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">長</div>';
-      } else if(lotteryFull){
+      } else if(lotteryFull&&!(alreadyApplied&&st==='loser')){
         cellStyle='color:var(--text-dim);opacity:.38;cursor:default;';title='抽籤已滿';
         dotHtml='<div style="font-size:.46rem;line-height:1;margin-top:1px;text-align:center;">滿</div>';
       } else if(alreadyApplied){
@@ -3084,8 +3092,19 @@ function renderAppCancelDates(){
   wrap.style.display='block';
   const ST_LABEL={lottery:'（已中籤）',direct:'（直接錄取）',loser:'（未中籤）','needs-lottery':'（超限待抽籤）',pending:''};
   const ST_COLOR={'lottery':'var(--green)','direct':'var(--green)','loser':'var(--red)','needs-lottery':'var(--accent2)','pending':'var(--text-dim)'};
+  const emp=data.employees.find(e=>e.id===eid);
+  const empGender=emp?emp.gender||'male':null;
   dateDiv.innerHTML=allDates.map(d=>{
-    const st=empStatus[d]||'pending';
+    let st=empStatus[d]||'pending';
+    // 若 statusMap 未顯示 loser（可能已被 extraLeave 蓋掉），額外從 history 補查
+    if(st!=='loser'&&emp){
+      const hRec=data.history.find(h=>
+        ((h.periodId===pid)||(h.periodName===p.name&&h.periodStart===p.start))
+        &&h.shift===emp.dept&&h.date===d&&!h.type
+        &&(h.gender===empGender||h.gender===undefined)
+      );
+      if(hRec&&hRec.losers.some(w=>w.name===emp.name&&w.dept===emp.dept)) st='loser';
+    }
     const stLabel=ST_LABEL[st]||'';
     const stColor=ST_COLOR[st]||'var(--text-dim)';
     return `<label style="display:inline-flex;align-items:center;gap:5px;margin:3px 7px 3px 0;cursor:pointer;font-size:.8rem;font-family:'Noto Serif TC',serif;color:${isWk(d)?'var(--accent2)':'var(--text)'};text-transform:none;letter-spacing:0;">
@@ -4064,15 +4083,20 @@ function selfSubmitExtraLeave(){
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return;
   if(!data.extraLeaves) data.extraLeaves=[];
+  // 假別衝突檢查
+  const newDates2=checkedDates.filter(d=>!(data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===d&&l.status!=='rejected'));
+  const conflicts2=getLeaveConflicts(eid,newDates2);
+  if(conflicts2.length){
+    const items=conflicts2.map(c=>`${fd(c.date)}（${c.type}）`).join('、');
+    return toast(`以下日期已有其他假別，請先取消後再申請請假：${items}`,true);
+  }
   let added=0, skipped=0;
   checkedDates.forEach(date=>{
     if((data.extraLeaves).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected')){skipped++;return;}
-    if(hasScheduledLeave(eid,date)){skipped++;return;}
-    if(isOnLongLeave(eid,date)){skipped++;return;}
     data.extraLeaves.push({id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,empId:eid,empName:emp.name,shift:emp.dept,date,reason,status:'pending',appliedAt:new Date().toLocaleString('zh-TW')});
     added++;
   });
-  if(!added)return toast(skipped?'所選日期均已申請或已排假':'請選擇日期',true);
+  if(!added)return toast(skipped?'所選日期均已申請':'請選擇日期',true);
   save();
   document.getElementById('self-el-reason').value='';
   renderSelfExtraLeave(eid);
@@ -6522,6 +6546,13 @@ function addLongLeave(){
   if(start>end)return toast('開始日期不能晚於結束日期',true);
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return;
+  // 假別衝突檢查（展開長假日期範圍）
+  const llDates=getDates(start,end);
+  const llConflicts=getLeaveConflicts(eid,llDates);
+  if(llConflicts.length){
+    const items=llConflicts.map(c=>`${fd(c.date)}（${c.type}）`).join('、');
+    return toast(`以下日期已有其他假別，請先取消後再設定長假：${items}`,true);
+  }
   if(!data.longLeaves) data.longLeaves=[];
   data.longLeaves.push({
     id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,
@@ -6888,6 +6919,41 @@ function isOverDailyLimit(empId,date,includePending=false){
     }).length;
   }
   return count>lim;
+}
+// 檢查某員工某些日期是否已存在任一假別，回傳衝突清單
+// 回傳：[{date, type:'排假'|'請假'|'長假'}]
+function getLeaveConflicts(empId, dates){
+  const conflicts=[];
+  const emp=data.employees.find(e=>e.id===empId);
+  if(!emp) return conflicts;
+  dates.forEach(date=>{
+    // 長假
+    if((data.longLeaves||[]).some(l=>l.empId===empId&&l.startDate<=date&&date<=l.endDate)){
+      conflicts.push({date,type:'長假'});return;
+    }
+    // 請假（approved 或 pending）
+    if((data.extraLeaves||[]).some(l=>l.empId===empId&&l.date===date&&l.status!=='rejected')){
+      conflicts.push({date,type:'請假'});return;
+    }
+    // 排假（含 loser）
+    const period=data.periods.find(p=>p.start<=date&&date<=p.end);
+    if(period){
+      const st=(buildStatusMap(period)[empId]||{})[date];
+      if(st&&st!=='extra'&&st!=='el-pending'){conflicts.push({date,type:'排假'});return;}
+    }
+    // loser 未被 statusMap 抓到時，補查 history
+    if(period){
+      const empGender=emp.gender||'male';
+      const hRec=data.history.find(h=>
+        ((h.periodId===period.id)||(h.periodName===period.name&&h.periodStart===period.start))
+        &&h.shift===emp.dept&&h.date===date&&!h.type
+        &&(h.gender===empGender||h.gender===undefined)
+      );
+      if(hRec&&hRec.losers.some(w=>w.name===emp.name&&w.dept===emp.dept))
+        {conflicts.push({date,type:'排假（未中籤）'});return;}
+    }
+  });
+  return conflicts;
 }
 function hasScheduledLeave(empId, date){
   // 檢查該員工在該日是否已有排假申請（含抽籤中籤、直接錄取、超限未抽籤、申請中）
