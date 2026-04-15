@@ -5894,7 +5894,7 @@ function renderSchedule(){
   });
   const ON_LEAVE=['lottery','direct','extra'];
   const _showLoser=document.getElementById('sch-show-loser')?.checked!==false;
-  const STATUS_ICON={lottery:'●',direct:'●',extra:'▲',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
+  const STATUS_ICON={lottery:'R',direct:'R',extra:'請',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
   const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending','needs-lottery':'cell-needs-lottery'};
   const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中','el-pending':'請假待審','needs-lottery':'尚未抽籤'};
   const _effSt=st=>(st==='loser'&&!_showLoser)?'':st;
@@ -6794,7 +6794,7 @@ function renderSelfSchedule(){
     const statusMap=pub.statusMap;
     const ON_LEAVE=['lottery','direct','extra'];
     const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',loser:'未中籤',pending:'申請中','el-pending':'請假待審','needs-lottery':'尚未抽籤'};
-    const STATUS_ICON={lottery:'●',direct:'●',extra:'▲',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
+    const STATUS_ICON={lottery:'R',direct:'R',extra:'請',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
     const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending','needs-lottery':'cell-needs-lottery'};
     const _pubEffSt=st=>(st==='loser'&&pub.hideLoser)?'':st;
     const WD=['日','一','二','三','四','五','六'];
