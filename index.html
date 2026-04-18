@@ -4756,8 +4756,9 @@ function exportScheduleExcel(){
     const counterApps=data.counterApplications||[];
     const counterInPeriod=counterApps.filter(a=>a.periodId===pid);
     const csOrder=(data.counterStaff||[]).map(s=>s.adminId);
-    // 以 counterStaff 為基礎顯示所有櫃台人員（不只有請假的），依 filterStore 篩選
-    const allCounterStaff=(data.counterStaff||[]);
+    // 以 counterStaff 為基礎顯示所有櫃台人員，依假期店別或 filterStore 篩選
+    const _ctrStore=filterStore||period.storeRestrict||'';
+    const allCounterStaff=(data.counterStaff||[]).filter(s=>!_ctrStore||!s.store||s.store===_ctrStore);
     const counterAdmins=allCounterStaff.map(s=>{
       const admin=(data.admins||[]).find(a=>a.id===s.adminId);
       return {id:s.adminId,name:s.nickname||admin?.username||s.adminId,shift:s.shift||'',store:s.store||''};
@@ -4911,11 +4912,17 @@ function exportAttendanceExcel(){
     if(ch==='中') return new Set([4,5,6,7,8,9,10,11,12,13]);
     // 晚班平日15:00~00:00，假日17:00~02:00
     if(ch==='晚') return isHoliday ? new Set([9,10,11,12,13,14,15,16,17,18]) : new Set([7,8,9,10,11,12,13,14,15,16]);
-    const m=dept.match(/(\d{1,2})[:\-](\d{1,2})/);
+    // 自定義時間：格式 HH:MM-HH:MM 或 HH-HH
+    const m=dept.match(/(\d{1,2})(?::(\d{2}))?[:\-](\d{1,2})(?::(\d{2}))?/);
     if(m){
       const h2o={9:1,10:2,11:3,12:4,13:5,14:6,15:7,16:8,17:9,18:10,19:11,20:12,21:13,22:14,23:15,0:16,1:17,2:18};
-      const s=new Set();let h=parseInt(m[1]);const e2=parseInt(m[2]);
-      while(h!==e2){s.add(h2o[h]);h=(h+1)%24;}
+      const startH=parseInt(m[1]), startM=parseInt(m[2]||'0');
+      const endH=parseInt(m[3]), endM=parseInt(m[4]||'0');
+      // 非整點結束：取當前整點（floor，即不含該小時）；開始時間照原樣
+      const effStart=startH;
+      const effEnd=endH;
+      const s=new Set();let h=effStart;
+      while(h!==effEnd){s.add(h2o[h]);h=(h+1)%24;}
       return s;
     }
     return new Set([1,2,3,4,5,6,7,8,9,10]);
