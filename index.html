@@ -4952,15 +4952,12 @@ function exportAttendanceExcel(){
   // dept: 班別名稱；customTime: {start:'HH:MM', end:'HH:MM'} 優先於班別
   function getWorkOffsets(dept, isHoliday, customTime){
     const h2o={9:1,10:2,11:3,12:4,13:5,14:6,15:7,16:8,17:9,18:10,19:11,20:12,21:13,22:14,23:15,0:16,1:17,2:18};
-    // 從 startH 填到 endH（含 endH，因格子代表「此整點小時在上班」）
+    // 從 startH 填到 endH（含 endH 若整點，因格子代表「此整點小時在上班」）
     function fillRange(sh,em,eh){
-      // em: end minutes (若非零則不含 endH 格)
+      // 計算應填格數：從 sh 到 eh 的小時數（跨午夜正確處理）
+      const totalH=((eh-sh+24)%24)+(em===0?1:0); // 整點下班多填最後一格
       const s=new Set();let h=sh;
-      const stop=em>0?eh:(eh+1)%24; // 整點下班含 eh，非整點不含 eh
-      // 但 stop 用於不同繞圈邏輯，改用計數
-      let count=0;
-      while(h!==eh&&count<24){if(h2o[h])s.add(h2o[h]);h=(h+1)%24;count++;}
-      if(em===0&&h2o[eh])s.add(h2o[eh]); // 整點下班：含 endH 格
+      for(let i=0;i<totalH;i++){if(h2o[h])s.add(h2o[h]);h=(h+1)%24;}
       return s;
     }
     // 優先用個別時間或班別預設時間
