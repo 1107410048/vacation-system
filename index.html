@@ -558,8 +558,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
             </div>
             <div class="field"><label>兼職人員每月上班天數下限</label>
               <div style="display:flex;gap:8px;align-items:center;">
-                <input type="number" id="part-time-quota" min="1" value="4" style="width:80px;">
-                <span style="font-size:.78rem;color:var(--text-dim);">目前：<span id="part-time-quota-display" style="color:var(--accent);font-weight:700;">4</span> 天（當月天數 − 下限 = 可排假天數）</span>
+                <input type="number" id="part-time-quota" min="1" value="15" style="width:80px;">
+                <span style="font-size:.78rem;color:var(--text-dim);">目前：<span id="part-time-quota-display" style="color:var(--accent);font-weight:700;">15</span> 天（當月天數 − 下限 = 可排假天數）</span>
               </div>
             </div>
           </div>
@@ -1322,7 +1322,7 @@ const DEFAULT_DATA = {
   makeupLeaves:[],
   pendingPromotions:[],
   monthlyQuota:8,
-  partTimeQuota:4,
+  partTimeQuota:15,
   history:[],
   admins:[], // [{id, username, password}]
   longLeaves:[], // [{id, empId, empName, shift, startDate, endDate, reason, countAsSlot, customQuota, appliedAt}]
@@ -1400,7 +1400,7 @@ function migrateData(d){
   if(!Array.isArray(d.pendingPromotions)) d.pendingPromotions=[];
   if(!Array.isArray(d.history)) d.history=[];
   if(!d.monthlyQuota) d.monthlyQuota=8;
-  if(!d.partTimeQuota) d.partTimeQuota=4;
+  if(!d.partTimeQuota) d.partTimeQuota=15;
   if(!Array.isArray(d.admins)) d.admins=[];
   if(!d.dailyLimits) d.dailyLimits={};
   if(!d.publishedSchedules) d.publishedSchedules=[];
@@ -1874,7 +1874,7 @@ function refreshCleanerNameSelect(){
   (data.cleanerStaff||[]).forEach(s=>{
     const o=document.createElement('option');
     o.value=s.name;
-    const displayName=s.nickname?`${s.name}（${s.nickname}）`:s.name;
+    const displayName=s.nickname||s.name;
     const desc=[s.store,s.shift].filter(Boolean).join('・');
     o.textContent=displayName+(desc?` (${desc})`:'');
     sel.appendChild(o);
@@ -1910,8 +1910,10 @@ function onCleanerPeriodChange(preCheck=true){
   const schedSet=new Set((data.cleanerSchedules||[]).filter(s=>s.name===name&&s.periodId===pid).map(s=>s.date));
   dw.innerHTML=dates.map(d=>{
     const isScheduled=schedSet.has(d);
-    return `<label style="display:flex;align-items:center;gap:5px;font-size:.79rem;cursor:pointer;padding:2px 0;${isScheduled?'color:var(--accent2);':''}">
-      <input type="checkbox" id="cleanerdate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"${preCheck&&isScheduled?' checked':''}> ${fd(d)}
+    const badge=isScheduled?`<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-dim);margin-left:2px;">已排班</span>`:'';
+    const color=isScheduled?'var(--accent2)':isWk(d)?'var(--accent2)':'var(--text)';
+    return `<label style="display:inline-flex;align-items:center;gap:5px;margin:3px 7px 3px 0;cursor:pointer;font-size:.8rem;font-family:'Noto Sans TC',sans-serif;color:${color};text-transform:none;letter-spacing:0;">
+      <input type="checkbox" id="cleanerdate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"${preCheck&&isScheduled?' checked':''}> ${fd(d)}${badge}
     </label>`;
   }).join('');
   // 同步班表預覽假期
@@ -4775,7 +4777,7 @@ function exportScheduleExcel(){
       const _ovSi=(data.counterStaff||[]).find(s=>s.adminId===x.adminId);
       const _ovDef=_ovSi?.store||'';
       const _ovStr=x.store||'';
-      const _ovPfx=(_ovStr&&_ovStr!==_ovDef)?_sp(_ovStr):'';
+      const _ovPfx=_sp(_ovStr||_ovDef); // 永遠顯示店別前綴
       const _ovDefPfx=_sp(_ovDef);
       overrideMap[x.adminId][x.date]=x.shift==='custom'?`${_ovPfx||_ovDefPfx}${fmtT(x.customStart)}-${fmtT(x.customEnd)}`:_ovPfx+x.shift;
     });
@@ -5189,7 +5191,10 @@ function refreshAdminSelects(){
     sel.innerHTML=`<option value="">${placeholder}</option>`;
     admins.forEach(a=>{
       const o=document.createElement('option');
-      o.value=a.id; o.textContent=`${a.username}（${a.role||'主管'}）`;
+      const _csInfo=(data.counterStaff||[]).find(s=>s.adminId===a.id);
+      const _csNick=_csInfo?.nickname||a.username;
+      const _csDesc=[_csInfo?.store,_csInfo?.shift?_csInfo.shift+'班':null].filter(Boolean).join('・');
+      o.value=a.id; o.textContent=_csNick+(_csDesc?` (${_csDesc})`:'');
       sel.appendChild(o);
     });
     if(cur) sel.value=cur;
@@ -5591,7 +5596,8 @@ function onCsoPeriodChange(){
   dw.innerHTML=dates.map(d=>{
     const isOff=leaveSet.has(d);
     const badge=isOff?`<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-dim);margin-left:2px;">休→上班</span>`:'';
-    return `<label style="display:flex;align-items:center;gap:5px;font-size:.79rem;cursor:pointer;padding:2px 0;${isOff?'color:var(--accent2);':''}">
+    const color=isOff?'var(--accent2)':isWk(d)?'var(--accent2)':'var(--text)';
+    return `<label style="display:inline-flex;align-items:center;gap:5px;margin:3px 7px 3px 0;cursor:pointer;font-size:.8rem;font-family:'Noto Sans TC',sans-serif;color:${color};text-transform:none;letter-spacing:0;">
     <input type="checkbox" id="csodate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"> ${fd(d)}${badge}
   </label>`;
   }).join('');
@@ -5682,7 +5688,7 @@ function renderCsoOverview(){
           const _csoSi=(data.counterStaff||[]).find(s=>s.adminId===x.adminId);
           const _csoDef=_csoSi?.store||'';
           const _csoOvr=x.store||'';
-          const _csoPfx=(_csoOvr&&_csoOvr!==_csoDef)?_csoSp(_csoOvr):'';
+          const _csoPfx=_csoSp(_csoOvr||_csoDef); // 永遠顯示店別前綴
           const _csoDefPfx=_csoSp(_csoDef);
           const _csoLbl=x.shift==='custom'?`${_csoPfx||_csoDefPfx}${x.customStart}~${x.customEnd}`:_csoPfx+x.shift+'班';
           return `<div class="day-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 0;">
@@ -5738,7 +5744,7 @@ function renderCounterPreview(periodId, containerId){
           const _cpSp=st=>st==='竹北店'?'竹':st==='關新店'?'關':'';
           const _cpDef=s.store||'';
           const _cpOvr=ovr.store||'';
-          const _cpPfx=(_cpOvr&&_cpOvr!==_cpDef)?_cpSp(_cpOvr):'';
+          const _cpPfx=_cpSp(_cpOvr||_cpDef); // 永遠顯示店別前綴
           const _cpDefPfx=_cpSp(_cpDef);
           label=ovr.shift==='custom'
             ?`${_cpPfx||_cpDefPfx}${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
@@ -6082,7 +6088,7 @@ function renderSchedule(){
           if(ovr){
             const _ovrSp=s=>s==='竹北店'?'竹':s==='關新店'?'關':'';
             const _ovrStr=ovr.store||'';
-            const _ovrPfx=(_ovrStr&&_ovrStr!==ca.store)?_ovrSp(_ovrStr):'';
+            const _ovrPfx=_ovrSp(_ovrStr||ca.store); // 永遠顯示店別前綴
             const _ovrDefPfx=_ovrSp(ca.store);
             workLabel=ovr.shift==='custom'
               ?`${_ovrPfx||_ovrDefPfx}${(ovr.customStart||'').slice(0,2)}-${(ovr.customEnd||'').slice(0,2)}`
