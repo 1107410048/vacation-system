@@ -4914,7 +4914,7 @@ function exportAttendanceExcel(){
     // 晚班平日15:00~00:00，假日17:00~02:00
     if(ch==='晚') return isHoliday ? new Set([9,10,11,12,13,14,15,16,17,18]) : new Set([7,8,9,10,11,12,13,14,15,16]);
     // 自定義時間：格式 HH:MM-HH:MM 或 HH-HH
-    const m=dept.match(/(\d{1,2})(?::(\d{2}))?[:\-](\d{1,2})(?::(\d{2}))?/);
+    const m=dept.match(/(\d{1,2})(?::(\d{2}))?-(\d{1,2})(?::(\d{2}))?/);
     if(m){
       const h2o={9:1,10:2,11:3,12:4,13:5,14:6,15:7,16:8,17:9,18:10,19:11,20:12,21:13,22:14,23:15,0:16,1:17,2:18};
       const startH=parseInt(m[1]), startM=parseInt(m[2]||'0');
@@ -5044,7 +5044,17 @@ function exportAttendanceExcel(){
         merges.push({sr:rowIdx+1,er:rowIdx+1,sc:colBase+1,ec:colBase+COLS_PER_DAY});
       } else if(er.type==='counter'){
         const ca=er.ca;
-        const workOffs=getWorkOffsets(ca.shift, isWkd);
+        // 優先用特殊排班時間
+        const _caOvr=(data.counterShiftOverrides||[]).find(x=>x.adminId===ca.id&&x.date===d);
+        let _caShiftStr=ca.shift;
+        if(_caOvr){
+          if(_caOvr.shift==='custom'&&_caOvr.customStart&&_caOvr.customEnd){
+            _caShiftStr=`${_caOvr.customStart}-${_caOvr.customEnd}`;
+          } else if(_caOvr.shift&&_caOvr.shift!=='custom'){
+            _caShiftStr=_caOvr.shift;
+          }
+        }
+        const workOffs=getWorkOffsets(_caShiftStr, isWkd);
         const isOnLeave=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
         rows[rowIdx][colBase]=ca.name;
         cellStyles[rowIdx][colBase]=1;
