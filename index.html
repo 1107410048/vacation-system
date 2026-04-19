@@ -959,8 +959,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
                   <option value="">-- 選擇管理員 --</option>
                 </select>
               </div>
-              <div class="field"><label>選擇假期</label>
-                <select id="counter-period" onchange="onCounterPeriodChange()"><option value="">-- 選擇假期 --</option></select>
+              <div class="field"><label>選擇月份</label>
+                <input type="month" id="counter-month" onchange="onCounterMonthChange()" style="width:100%;padding:8px 12px;border-radius:var(--radius);font-family:'Noto Sans TC',sans-serif;font-size:.88rem;width:100%;outline:none;background:var(--surface);border:1px solid var(--border);color:var(--text);">
               </div>
             </div>
             <div class="field"><label>申請日期（可多選）</label>
@@ -4749,7 +4749,15 @@ function exportScheduleExcel(){
         loserRow.push(isLoser);
       }));
       statShifts.forEach(sh=>{
-        row.push(allEmps.filter(e=>e.dept===sh).filter(emp=>ON_LEAVE.includes((statusMap[emp.id]||{})[d])).length);
+        const shEmps=allEmps.filter(e=>e.dept===sh);
+        // 排假人數（lottery/direct）+ 占名額長假人數（countAsSlot）
+        const schedCount=shEmps.filter(emp=>['lottery','direct'].includes((statusMap[emp.id]||{})[d])).length;
+        const longSlotCount=shEmps.filter(emp=>{
+          const st=(statusMap[emp.id]||{})[d];
+          if(!['long-start','long-end','long-mid'].includes(st)) return false;
+          return (data.longLeaves||[]).some(l=>l.empId===emp.id&&l.countAsSlot&&l.startDate<=d&&d<=l.endDate);
+        }).length;
+        row.push(schedCount+longSlotCount);
         loserRow.push(false);
       });
       rows.push(row);
@@ -4796,7 +4804,7 @@ function exportScheduleExcel(){
   // ── 櫃檶＋清潔工作表 ──
   function buildCounterSheet(){
     const counterApps=data.counterApplications||[];
-    const counterInPeriod=counterApps.filter(a=>a.periodId===pid);
+    const counterInPeriod=counterApps.filter(a=>a.date>=period.start&&a.date<=period.end);
     const csOrder=(data.counterStaff||[]).map(s=>s.adminId);
     // 匯出假表顯示所有櫃台（不按假期店別過濾）
     const allCounterStaff=(data.counterStaff||[]);
@@ -4926,7 +4934,7 @@ function exportAttendanceExcel(){
 
   // ── 櫃台人員（依假期或 filterStore 店別篩選）──
   const counterApps=data.counterApplications||[];
-  const counterInPeriod=counterApps.filter(a=>a.periodId===pid);
+  const counterInPeriod=counterApps.filter(a=>a.date>=period.start&&a.date<=period.end);
   // 出勤表：只顯示該假期中至少有一天在該假期店別上班的櫃台人員
   const _attPeriodStore=period.storeRestrict||'';
   const counterAdmins=(data.counterStaff||[]).filter(s=>{
@@ -4958,7 +4966,7 @@ function exportAttendanceExcel(){
 
   // ── 上班時段 offset（1=09:00…18=02:00）──
   // dept: 班別名稱；customTime: {start:'HH:MM', end:'HH:MM'} 優先於班別
-  function getWorkOffsets(dept, isHoliday, customTime){
+  function getWorkOffsets(dept, isHoliday, customTime, store){
     const h2o={9:1,10:2,11:3,12:4,13:5,14:6,15:7,16:8,17:9,18:10,19:11,20:12,21:13,22:14,23:15,0:16,1:17,2:18};
     // 從 startH 填到 endH（含 endH 若整點，因格子代表「此整點小時在上班」）
     function fillRange(sh,em,eh){
@@ -4978,8 +4986,11 @@ function exportAttendanceExcel(){
     }
     // 班別名稱對應（完整比對，避免早中班被誤判為早班）
     const deptN=dept.trim();
-    // 早班 09:00-17:30
-    if(deptN==='早班'||deptN==='早') return new Set([1,2,3,4,5,6,7,8,9]);
+    // 早班：竹北店 09:00-17:30，關新店 10:00-18:00
+    if(deptN==='早班'||deptN==='早'){
+      if(store==='關新店') return new Set([2,3,4,5,6,7,8,9,10]); // 10:00~18:00
+      return new Set([1,2,3,4,5,6,7,8,9]); // 09:00~17:00（竹北預設）
+    }
     // 中班 12:00-21:00
     if(deptN==='中班'||deptN==='中') return new Set([4,5,6,7,8,9,10,11,12,13]);
     // 晚班平日 15:00-00:00，假日 17:00-02:00
@@ -5128,7 +5139,7 @@ function exportAttendanceExcel(){
         const _periodStore=period.storeRestrict||'';
         const _caMatch=!_periodStore||_caActualStore===_periodStore;
         const isOnLeave=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
-        const workOffs=_caMatch?getWorkOffsets(_caShiftStr, isWkd):new Set();
+        const workOffs=_caMatch?getWorkOffsets(_caShiftStr, isWkd, null, _caActualStore):new Set();
         rows[rowIdx][colBase]=ca.name;
         cellStyles[rowIdx][colBase]=1;
         for(let off=1;off<=18;off++){
@@ -5156,7 +5167,7 @@ function exportAttendanceExcel(){
         } else {
           _empCustom=_deptDefault;
         }
-        const workOffs=getWorkOffsets(emp.dept, isWkd, _empCustom);
+        const workOffs=getWorkOffsets(emp.dept, isWkd, _empCustom, emp.store||'竹北店');
         const isOnLeave=ON_LEAVE.includes((statusMap[emp.id]||{})[d]);
         rows[rowIdx][colBase]=emp.name;
         cellStyles[rowIdx][colBase]=1;
@@ -5328,7 +5339,7 @@ function initCounterPanel(){
   // 填入管理員選單：依櫃台班別順序優先，其餘依 admins 原順序補於後
   refreshAdminSelects();
   // 填入假期選單（含班別調整用）
-  ['counter-period','cso-period','leave-preview-period','special-preview-period','cleaner-period','cleaner-preview-period'].forEach(selId=>{
+  ['cso-period','leave-preview-period','special-preview-period','cleaner-period','cleaner-preview-period'].forEach(selId=>{
     const ps=document.getElementById(selId);
     if(!ps) return;
     const pcur=ps.value;
@@ -5347,15 +5358,18 @@ function onCounterAdminChange(){
   // 重新選管理員時刷新日期清單（含已排假標記）
   onCounterPeriodChange();
 }
-function onCounterPeriodChange(){
-  const pid=parseInt(document.getElementById('counter-period').value);
-  const p=data.periods.find(x=>x.id===pid);
+function onCounterPeriodChange(){ onCounterMonthChange(); } // 相容舊呼叫
+function onCounterMonthChange(){
+  const month=document.getElementById('counter-month')?.value||''; // 'YYYY-MM'
   const dw=document.getElementById('counter-dates-wrap');
-  // 清除日期勾選
-  if(!p){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>';return;}
-  const dates=getDates(p.start,p.end);
+  if(!month){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇月份</div>';return;}
+  const [y,m]=month.split('-').map(Number);
+  const start=`${month}-01`;
+  const lastDay=new Date(y,m,0).getDate();
+  const end=`${month}-${String(lastDay).padStart(2,'0')}`;
+  const dates=getDates(start,end);
   const aid2=document.getElementById('counter-admin').value;
-  const alreadyLeave=new Set((data.counterApplications||[]).filter(a=>a.adminId===aid2&&a.periodId===pid).map(a=>a.date));
+  const alreadyLeave=new Set((data.counterApplications||[]).filter(a=>a.adminId===aid2&&a.date>=start&&a.date<=end).map(a=>a.date));
   dw.innerHTML=dates.map(d=>{
     const already=alreadyLeave.has(d);
     const badge=already?`<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-dim);margin-left:2px;">已排假</span>`:'';
@@ -5363,20 +5377,18 @@ function onCounterPeriodChange(){
     <input type="checkbox" id="counterdate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"${already?' disabled title="已排假"':''}> ${fd(d)}${badge}
   </label>`;
   }).join('');
-  // 同步預覽假期選單並刷新預覽
-  const lp=document.getElementById('leave-preview-period');
-  if(lp){lp.value=pid||'';renderCounterPreview(pid||0,'leave-preview-table');}
 }
 function addCounterApplication(){
   const aid=document.getElementById('counter-admin').value;
-  const pid=parseInt(document.getElementById('counter-period').value);
+  const month=document.getElementById('counter-month')?.value||'';
   if(!aid)return toast('請選擇管理員',true);
-  if(!pid)return toast('請選擇假期',true);
+  if(!month)return toast('請選擇月份',true);
   const admin=(data.admins||[]).find(a=>a.id===aid);
   if(!admin)return toast('找不到管理員',true);
-  const p=data.periods.find(x=>x.id===pid);
-  if(!p)return toast('找不到假期',true);
-  const dates=getDates(p.start,p.end).filter(d=>document.getElementById('counterdate_'+d)?.checked);
+  const [y,m]=month.split('-').map(Number);
+  const start=`${month}-01`;
+  const end=`${month}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+  const dates=getDates(start,end).filter(d=>document.getElementById('counterdate_'+d)?.checked);
   if(!dates.length)return toast('請至少勾選一個日期',true);
   // 檢查是否有日期已存在特殊排班
   const conflictDates=dates.filter(d=>(data.counterShiftOverrides||[]).some(x=>x.adminId===aid&&x.date===d));
@@ -5384,19 +5396,16 @@ function addCounterApplication(){
     if(!data.counterApplications) data.counterApplications=[];
     let added=0;
     dates.forEach(d=>{
-      // 若有特殊排班衝突，刪除之
       if(conflictDates.includes(d)){
         data.counterShiftOverrides=(data.counterShiftOverrides||[]).filter(x=>!(x.adminId===aid&&x.date===d));
       }
-      const exists=data.counterApplications.find(a=>a.adminId===aid&&a.periodId===pid&&a.date===d);
+      const exists=data.counterApplications.find(a=>a.adminId===aid&&a.date===d);
       if(!exists){
         data.counterApplications.push({
           id:`ca_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
           adminId:aid,
           adminName:admin.username,
           adminRole:admin.role||'主管',
-          periodId:pid,
-          periodName:p.name,
           date:d,
           appliedAt:new Date().toLocaleString('zh-TW')
         });
@@ -5407,8 +5416,8 @@ function addCounterApplication(){
     renderCounterOverview();
     renderCsoOverview();
     refreshCounterPreviews();
-    onCounterPeriodChange(); // 刷新排假日期清單
-    onCsoPeriodChange();     // 刷新班別調整日期清單（同步休→上班標記）
+    onCounterMonthChange();
+    onCsoPeriodChange();
     const extra=conflictDates.length>0?`（已同步移除 ${conflictDates.length} 天特殊排班）`:'';
     if(added===0) return toast('所選日期已全部申請過，無新增排假',true);
     toast(`✓ ${admin.username} 排假 ${added} 天${extra}`);
@@ -5716,7 +5725,7 @@ function onCsoPeriodChange(){
   if(!p){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>';return;}
   const dates=getDates(p.start,p.end);
   // 建立休假日期集合（依目前選擇的管理員）
-  const leaveSet=new Set((data.counterApplications||[]).filter(a=>a.adminId===aid&&a.periodId===pid).map(a=>a.date));
+  const leaveSet=new Set((data.counterApplications||[]).filter(a=>a.adminId===aid&&a.date>=p.start&&a.date<=p.end).map(a=>a.date));
   dw.innerHTML=dates.map(d=>{
     const isOff=leaveSet.has(d);
     const badge=isOff?`<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-dim);margin-left:2px;">休→上班</span>`:'';
@@ -5836,7 +5845,8 @@ function renderCounterPreview(periodId, containerId){
   const staff=data.counterStaff||[];
   if(!staff.length){el.innerHTML='<div class="empty" style="padding:10px 0;font-size:.78rem;">尚未設定櫃台人員</div>';return;}
   // 建立休假 dateMap
-  const counterApps=(data.counterApplications||[]).filter(a=>a.periodId===periodId);
+  const period2=data.periods.find(p=>p.id===periodId);
+  const counterApps=(data.counterApplications||[]).filter(a=>!period2||(a.date>=period2.start&&a.date<=period2.end));
   const leaveDateMap={};
   counterApps.forEach(a=>{
     if(!leaveDateMap[a.adminId]) leaveDateMap[a.adminId]=new Set();
@@ -6124,7 +6134,7 @@ function renderSchedule(){
   // 櫃檯排假：全部班別或僅顯示櫃檶時顯示；指定員工班別時隱藏
   const _showCounter=!filterGender||_isCounterOnly;
   const counterApps=data.counterApplications||[];
-  const counterInPeriod=_showCounter?counterApps.filter(a=>a.periodId===pid):[];
+  const counterInPeriod=_showCounter?counterApps.filter(a=>a.date>=period.start&&a.date<=period.end):[];
   // 固定顯示已設定的櫃台人員，依假期店別限制篩選
   // 假表顯示所有櫃台（不按假期店別過濾）
   const counterAdmins=_showCounter?(data.counterStaff||[]).map(s=>{
