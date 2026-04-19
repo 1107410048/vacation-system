@@ -5120,14 +5120,19 @@ function exportAttendanceExcel(){
         const _caWrongStore=_periodStore&&_caActualStore!==_periodStore;
         const isOnLeave=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
         if(_caWrongStore){
-          // 不符合店別：整列往上合併（視覺上補滿上方格子）
+          // 不符合店別：清空內容，記錄需往上合併的位置
           rows[rowIdx][colBase]=null;
           cellStyles[rowIdx][colBase]=1;
           for(let off=1;off<=18;off++){rows[rowIdx][colBase+off]=null;cellStyles[rowIdx][colBase+off]=1;}
-          // 與上一列合併（往上補）：名稱欄 + 所有時段欄各自垂直合併
-          const _mergeUpRow=rowIdx-1;
-          merges.push({sr:_mergeUpRow+1,er:rowIdx+1,sc:colBase+1,ec:colBase+1}); // 名稱欄
-          merges.push({sr:_mergeUpRow+1,er:rowIdx+1,sc:colBase+2,ec:colBase+COLS_PER_DAY}); // 時段欄整體合併
+          // 往上合併：找到此欄位上方最近一個有內容的列做合併
+          // 名稱欄往上合併
+          let _mergeStartR=rowIdx-1;
+          while(_mergeStartR>rowBase+1&&rows[_mergeStartR][colBase]===null) _mergeStartR--;
+          if(_mergeStartR<rowIdx) merges.push({sr:_mergeStartR+1,er:rowIdx+1,sc:colBase+1,ec:colBase+1});
+          // 時段欄整體往上合併
+          let _mergeStartT=rowIdx-1;
+          while(_mergeStartT>rowBase+1&&rows[_mergeStartT][colBase+1]===null) _mergeStartT--;
+          if(_mergeStartT<rowIdx) merges.push({sr:_mergeStartT+1,er:rowIdx+1,sc:colBase+2,ec:colBase+COLS_PER_DAY});
         } else {
           const workOffs=getWorkOffsets(_caShiftStr, isWkd);
           rows[rowIdx][colBase]=ca.name;
