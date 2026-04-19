@@ -6089,8 +6089,9 @@ function renderSchedule(){
   const _showCounter=!filterGender||_isCounterOnly;
   const counterApps=data.counterApplications||[];
   const counterInPeriod=_showCounter?counterApps.filter(a=>a.periodId===pid):[];
-  // 固定顯示所有已設定的櫃台人員（無論店別、無論是否有排假申請）
-  const counterAdmins=_showCounter?(data.counterStaff||[]).map(s=>{
+  // 固定顯示已設定的櫃台人員，依假期店別限制篩選
+  const _schCtrStore=period.storeRestrict||'';
+  const counterAdmins=_showCounter?(data.counterStaff||[]).filter(s=>!_schCtrStore||(s.store||'竹北店')===_schCtrStore).map(s=>{
     const _csAdmin=(data.admins||[]).find(a=>a.id===s.adminId);
     return {id:s.adminId,name:s.nickname||s.adminName,role:_csAdmin?.role||'主管',shift:s.shift||'',store:s.store||''};
   }):[];
