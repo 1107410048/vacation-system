@@ -5124,24 +5124,17 @@ function exportAttendanceExcel(){
             _caShiftStr=_caOvr.shift;
           }
         }
-        // 若假期限定店別，當天實際上班店別不符則整行不顯示
+        // 當天上班店別符合假期才填色，不符合則空白（人員已在整月過濾中確認）
         const _periodStore=period.storeRestrict||'';
-        const _caWrongStore=_periodStore&&_caActualStore!==_periodStore;
+        const _caMatch=!_periodStore||_caActualStore===_periodStore;
         const isOnLeave=counterDateMap[ca.id]&&counterDateMap[ca.id].has(d);
-        if(_caWrongStore){
-          // 不符合店別（當天）：清空不填色
-          rows[rowIdx][colBase]=null;
-          cellStyles[rowIdx][colBase]=1;
-          for(let off=1;off<=18;off++){rows[rowIdx][colBase+off]=null;cellStyles[rowIdx][colBase+off]=1;}
-        } else {
-          const workOffs=getWorkOffsets(_caShiftStr, isWkd);
-          rows[rowIdx][colBase]=ca.name;
-          cellStyles[rowIdx][colBase]=1;
-          for(let off=1;off<=18;off++){
-            const isWork=workOffs.has(off)&&!isOnLeave;
-            rows[rowIdx][colBase+off]=isWork?'':null;
-            cellStyles[rowIdx][colBase+off]=isWork?2:1;
-          }
+        const workOffs=_caMatch?getWorkOffsets(_caShiftStr, isWkd):new Set();
+        rows[rowIdx][colBase]=ca.name;
+        cellStyles[rowIdx][colBase]=1;
+        for(let off=1;off<=18;off++){
+          const isWork=workOffs.has(off)&&!isOnLeave;
+          rows[rowIdx][colBase+off]=isWork?'':null;
+          cellStyles[rowIdx][colBase+off]=isWork?2:1;
         }
       } else {
         const emp=er.emp;
