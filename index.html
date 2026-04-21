@@ -1496,6 +1496,20 @@ function getLim(p,shift,d,gender){
   return v;
 }
 function getApps(periodId,shift,d){ return data.applications.filter(a=>a.periodId===periodId&&a.shift===shift&&a.dates.includes(d)); }
+// 取得某日某班別已核准生日假人數（依性別；生日假佔名額）
+function getBirthdayCount(period,shift,d,gender){
+  const pid=period.id;
+  const _elInP=l=>l.periodId?l.periodId===pid:(l.date>=period.start&&l.date<=period.end);
+  return (data.extraLeaves||[]).filter(l=>{
+    if(!l.isBirthday||l.status!=='approved') return false;
+    if(l.date!==d) return false;
+    if(!_elInP(l)) return false;
+    const emp=data.employees.find(e=>e.id===l.empId);
+    if(!emp||emp.dept!==shift) return false;
+    if(gender&&(emp.gender||'male')!==gender) return false;
+    return true;
+  }).length;
+}
 
 // ══ TOAST / MODAL ══
 function toast(msg,err=false){
@@ -2698,12 +2712,13 @@ function _addAppCore(periodId,empId,dates,forceOverLimit=false){
       if(alreadyWinner) return false;
       return hRec.winners.length>=hRec.limit;
     } else {
-      // 未抽籤：加入後申請人數是否超限
+      // 未抽籤：加入後申請人數是否超限（扣除生日假佔額）
       const allApps=getApps(periodId,emp.dept,d);
       const genderApps=allApps.filter(a=>{const e=data.employees.find(x=>x.id===a.empId);return (e?e.gender||'male':'male')===gender;});
       const alreadyApplied=genderApps.some(a=>a.empId===empId);
       const currentCount=genderApps.length+(alreadyApplied?0:1);
-      return currentCount>lim;
+      const bdCntApp=getBirthdayCount(p,emp.dept,d,gender);
+      return currentCount>Math.max(0,lim-bdCntApp);
     }
   });
   if(overLimitDates.length&&!forceOverLimit){
@@ -3615,15 +3630,18 @@ function buildAllPreview(p){
         const apps=allApps.filter(a=>{const e=data.employees.find(x=>x.id===a.empId);return (e?e.gender||'male':'male')===gender;});
         const cnt=apps.length;
         if(lim===0||cnt===0) return;
-        if(cnt<=lim){ directCount+=cnt; return; }
+        // ★ 生日假佔名額：有效名額 = 上限 - 生日假人數
+        const bdCount=getBirthdayCount(p,shift,d,gender);
+        const effLim=Math.max(0,lim-bdCount);
+        if(cnt<=effLim){ directCount+=cnt; return; }
         const alreadyDone=data.history.some(h=>
           (h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))
           &&h.shift===shift&&h.date===d&&!h.type
           &&(h.gender===gender||(h.gender===undefined&&allApps.length===apps.length))
         );
         const gLabel=gender==='male'?'足師':'體師';
-        if(alreadyDone) done.push({shift,date:d,lim,cnt,gLabel});
-        else slots.push({shift,date:d,lim,cnt,applicants:apps,gLabel});
+        if(alreadyDone) done.push({shift,date:d,lim:effLim,cnt,gLabel});
+        else slots.push({shift,date:d,lim:effLim,cnt,applicants:apps,gLabel});
       });
     });
   });
@@ -3765,7 +3783,10 @@ function runAllLottery(){
         const allApps=getApps(p.id,shift,d);
         const apps=allApps.filter(a=>{const e=data.employees.find(x=>x.id===a.empId);return (e?e.gender||'male':'male')===gender;});
         if(lim<=0||apps.length===0) return;
-        if(apps.length<=lim) return; // 未超限，直接錄取，無需抽籤
+        // ★ 生日假佔名額：實際可抽名額 = 上限 - 生日假人數
+        const bdCount=getBirthdayCount(p,shift,d,gender);
+        const effLim=Math.max(0,lim-bdCount);
+        if(apps.length<=effLim) return; // 未超限（扣除生日假後），直接錄取，無需抽籤
         // 已抽籤判斷：同時比對 gender 欄位（新格式），相容舊紀錄（無 gender 欄位時以班別+日期判斷）
         const alreadyDone=data.history.some(h=>
           (h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))
@@ -3773,7 +3794,7 @@ function runAllLottery(){
           &&(h.gender===gender||(h.gender===undefined&&allApps.length===apps.length))
         );
         if(alreadyDone) return;
-        _batchSlots.push({period:p,shift,date:d,lim,applicants:apps,gender});
+        _batchSlots.push({period:p,shift,date:d,lim:effLim,applicants:apps,gender});
       });
     });
   });
@@ -3793,7 +3814,9 @@ function runSlot(idx){
   document.getElementById('all-done-section').style.display='none';
   document.getElementById('stage-title').textContent=`🎲 第 ${idx+1}/${_batchSlots.length} 場`;
   const gLabel=slot.gender==='male'?'足師':'體師';
-  document.getElementById('stage-subtitle').textContent=`${slot.shift}｜${slot.date}｜${gLabel}｜從 ${pool.length} 人抽出 ${slot.lim} 人`;
+  const _bdInSlot=getBirthdayCount(slot.period,slot.shift,slot.date,slot.gender);
+  const _bdNote=_bdInSlot>0?`（生日假${_bdInSlot}人已佔額）`:'';
+  document.getElementById('stage-subtitle').textContent=`${slot.shift}｜${slot.date}｜${gLabel}｜從 ${pool.length} 人抽出 ${slot.lim} 人 ${_bdNote}`;
   updateDC(); renderDrum();
   document.getElementById('btn-draw').style.display='inline-block';
   document.getElementById('btn-auto').style.display='inline-block';
@@ -3875,8 +3898,12 @@ function onLotteryShiftChange(){
     let label;
     if(totalLim===0) label=`${fd(d)}　不開放`;
     else{
-      label=`${fd(d)}　足師 ${mApps.length}/${mLim} 體師 ${fApps.length}/${fLim}`;
-      const mOver=mApps.length>mLim, fOver=fApps.length>fLim;
+      const mBdD=getBirthdayCount(p,shift,d,'male');
+      const fBdD=getBirthdayCount(p,shift,d,'female');
+      const mEffLimD=Math.max(0,mLim-mBdD);
+      const fEffLimD=Math.max(0,fLim-fBdD);
+      label=`${fd(d)}　足師 ${mApps.length}/${mEffLimD} 體師 ${fApps.length}/${fEffLimD}`;
+      const mOver=mApps.length>mEffLimD, fOver=fApps.length>fEffLimD;
       if(mOver||fOver) label+=` ⚠ 需抽籤`;
       else if(cnt>0) label+=` ✓`;
       else label+=`（無申請）`;
@@ -3905,14 +3932,21 @@ function onLotteryDayChange(){
   const totalLim=mLim+fLim;
   if(totalLim===0){si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br><span style="color:var(--text-dim);">此日不開放</span>`;return;}
   if(cnt===0){si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>👥 0人申請`;return;}
-  const mNeedLottery=mApps.length>mLim;
-  const fNeedLottery=fApps.length>fLim;
+  // ★ 生日假佔名額：有效名額 = 上限 - 生日假人數
+  const mBd=getBirthdayCount(p,shift,date,'male');
+  const fBd=getBirthdayCount(p,shift,date,'female');
+  const mEffLim=Math.max(0,mLim-mBd);
+  const fEffLim=Math.max(0,fLim-fBd);
+  const mNeedLottery=mApps.length>mEffLim;
+  const fNeedLottery=fApps.length>fEffLim;
   const needLottery=mNeedLottery||fNeedLottery;
   // 檢查各性別是否已完成抽籤
   const mDone=data.history.some(h=>(h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))&&h.shift===shift&&h.date===date&&!h.type&&(h.gender==='male'||(h.gender===undefined&&mApps.length===cnt)));
   const fDone=data.history.some(h=>(h.periodId===p.id||(h.periodName===p.name&&h.periodStart===p.start))&&h.shift===shift&&h.date===date&&!h.type&&(h.gender==='female'||(h.gender===undefined&&fApps.length===cnt)));
   const allDone=(!mNeedLottery||mDone)&&(!fNeedLottery||fDone);
-  const detailHtml=`足師 ${mApps.length}/${mLim}人${mNeedLottery&&!mDone?' <span style="color:var(--red);">需抽籤</span>':mDone?' <span style="color:var(--green);">✓</span>':''} ／ 體師 ${fApps.length}/${fLim}人${fNeedLottery&&!fDone?' <span style="color:var(--red);">需抽籤</span>':fDone?' <span style="color:var(--green);">✓</span>':''}`;
+  const mBdNote=mBd>0?` <span style="color:var(--accent);font-size:.75em;">（生日假${mBd}人佔額）</span>`:'';
+  const fBdNote=fBd>0?` <span style="color:var(--accent);font-size:.75em;">（生日假${fBd}人佔額）</span>`:'';
+  const detailHtml=`足師 ${mApps.length}/${mEffLim}人${mBdNote}${mNeedLottery&&!mDone?' <span style="color:var(--red);">需抽籤</span>':mDone?' <span style="color:var(--green);">✓</span>':''} ／ 體師 ${fApps.length}/${fEffLim}人${fBdNote}${fNeedLottery&&!fDone?' <span style="color:var(--red);">需抽籤</span>':fDone?' <span style="color:var(--green);">✓</span>':''}`;
   if(!needLottery){
     si.innerHTML=`🏷️ <strong style="color:var(--accent)">${shift}</strong> 📆 ${date}<br>${detailHtml}<br><span style="color:var(--green);">✓ 未超限，直接錄取</span>`;
   } else if(allDone){
@@ -4013,8 +4047,11 @@ function startSingleLottery(){
     const lim=getLim(period,shift,date,gender);
     const apps=allApplicants.filter(a=>{const e=data.employees.find(x=>x.id===a.empId);return (e?e.gender||'male':'male')===gender;});
     if(apps.length===0||lim<=0) return;
-    if(apps.length<=lim) return; // 未超限
-    _batchSlots.push({period,shift,date,lim,applicants:apps,gender});
+    // ★ 生日假佔名額：實際可抽名額 = 上限 - 生日假人數
+    const bdCount=getBirthdayCount(period,shift,date,gender);
+    const effLim=Math.max(0,lim-bdCount);
+    if(apps.length<=effLim) return; // 未超限（扣除生日假後）
+    _batchSlots.push({period,shift,date,lim:effLim,applicants:apps,gender});
   });
   if(!_batchSlots.length)return toast('未超限，無需抽籤',true);
   LS.mode='single';
@@ -4757,7 +4794,9 @@ function exportScheduleExcel(){
           if(!['long-start','long-end','long-mid'].includes(st)) return false;
           return (data.longLeaves||[]).some(l=>l.empId===emp.id&&l.countAsSlot&&l.startDate<=d&&d<=l.endDate);
         }).length;
-        row.push(schedCount+longSlotCount);
+        // ★ 生日假也計入當日休假人數
+        const bdSlotCount=shEmps.filter(emp=>(statusMap[emp.id]||{})[d]==='birthday').length;
+        row.push(schedCount+longSlotCount+bdSlotCount);
         loserRow.push(false);
       });
       rows.push(row);
@@ -6065,14 +6104,17 @@ function buildStatusMap(period){
         const lim=getLim(period,shift,d,gender); if(lim===0)return;
         const allApps=getApps(pid,shift,d);
         const apps=allApps.filter(a=>{const e=data.employees.find(x=>x.id===a.empId);return (e?e.gender||'male':'male')===gender;});
+        // ★ 生日假佔名額：有效名額 = 上限 - 生日假人數（最低為0）
+        const bdCount=getBirthdayCount(period,shift,d,gender);
+        const effLim=Math.max(0,lim-bdCount);
         const hadLottery=data.history.some(h=>
           (h.periodId===pid||(h.periodName===period.name&&h.periodStart===period.start))
           &&h.shift===shift&&h.date===d&&!h.type
           &&(h.gender===gender||(h.gender===undefined&&allApps.length===apps.length))
         );
-        if(!hadLottery&&apps.length>0&&apps.length<=lim) apps.forEach(a=>{if(!map[a.empId])map[a.empId]={};if(map[a.empId][d]==='pending')map[a.empId][d]='direct';});
-        // ★ 新增：超限且尚未抽籤 → 標記為 needs-lottery
-        if(!hadLottery&&apps.length>lim) apps.forEach(a=>{if(!map[a.empId])map[a.empId]={};if(map[a.empId][d]==='pending')map[a.empId][d]='needs-lottery';});
+        if(!hadLottery&&apps.length>0&&apps.length<=effLim) apps.forEach(a=>{if(!map[a.empId])map[a.empId]={};if(map[a.empId][d]==='pending')map[a.empId][d]='direct';});
+        // ★ 超限（以扣除生日假後的有效名額判斷）且尚未抽籤 → 標記為 needs-lottery
+        if(!hadLottery&&apps.length>effLim) apps.forEach(a=>{if(!map[a.empId])map[a.empId]={};if(map[a.empId][d]==='pending')map[a.empId][d]='needs-lottery';});
         // ★ 抽籤後新增排假：若仍為 pending 且名額未滿 → 直接錄取
         if(hadLottery){
           const hRec=data.history.find(h=>
