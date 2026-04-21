@@ -911,8 +911,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
               <div class="field"><label>管理員</label>
                 <select id="cso-admin" onchange="onCsoPeriodChange()" style="width:100%;"><option value="">-- 選擇管理員 --</option></select>
               </div>
-              <div class="field"><label>選擇假期</label>
-                <select id="cso-period" onchange="onCsoPeriodChange()" style="width:100%;"><option value="">-- 選擇假期 --</option></select>
+              <div class="field"><label>選擇月份</label>
+                <input type="month" id="cso-month" onchange="onCsoPeriodChange()" style="width:100%;padding:6px 10px;font-size:.82rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);">
               </div>
               <div class="field"><label>班別</label>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -938,12 +938,17 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <div>
               <div class="field"><label>申請日期（可多選）</label>
                 <div id="cso-dates-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:9px;min-height:80px;max-height:170px;overflow-y:auto;">
-                  <div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>
+                  <div style="color:var(--text-dim);font-size:.79rem;">請先選擇月份</div>
                 </div>
               </div>
             </div>
           </div>
           <div class="section-title" style="margin:14px 0 8px;">班別調整總覽</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <label style="font-size:.76rem;color:var(--text-dim);white-space:nowrap;">篩選月份</label>
+            <input type="month" id="cso-overview-month" oninput="renderCsoOverview()" style="padding:4px 8px;font-size:.76rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);">
+            <button class="btn btn-ghost" style="padding:3px 8px;font-size:.62rem;" onclick="document.getElementById('cso-overview-month').value='';renderCsoOverview()">全部</button>
+          </div>
           <div id="cso-overview"></div>
         </div>
         <!-- 櫃台班表預覽 -->
@@ -982,6 +987,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
         <div class="card">
           <div class="section-title" style="margin-bottom:10px;">排假申請總覽</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <label style="font-size:.76rem;color:var(--text-dim);white-space:nowrap;">篩選月份</label>
+            <input type="month" id="counter-overview-month" oninput="renderCounterOverview()" style="padding:4px 8px;font-size:.76rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);">
+            <button class="btn btn-ghost" style="padding:3px 8px;font-size:.62rem;" onclick="document.getElementById('counter-overview-month').value='';renderCounterOverview()">全部</button>
+          </div>
           <div id="counter-overview"></div>
         </div>
         <!-- 櫃台班表預覽 -->
@@ -1058,8 +1068,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
               <div class="field"><label>清潔人員</label>
                 <select id="cleaner-name" onchange="onCleanerNameChange()" style="width:100%;"><option value="">-- 選擇人員 --</option></select>
               </div>
-              <div class="field"><label>選擇假期</label>
-                <select id="cleaner-period" onchange="onCleanerPeriodChange()" style="width:100%;"><option value="">-- 選擇假期 --</option></select>
+              <div class="field"><label>選擇月份</label>
+                <input type="month" id="cleaner-month" onchange="onCleanerPeriodChange()" style="width:100%;padding:6px 10px;font-size:.82rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);">
               </div>
               <div class="field"><label>班別</label>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1090,6 +1100,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
             </div>
           </div>
           <div class="section-title" style="margin:14px 0 8px;">排班總覽</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <label style="font-size:.76rem;color:var(--text-dim);white-space:nowrap;">篩選月份</label>
+            <input type="month" id="cleaner-overview-month" oninput="renderCleanerOverview()" style="padding:4px 8px;font-size:.76rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);">
+            <button class="btn btn-ghost" style="padding:3px 8px;font-size:.62rem;" onclick="document.getElementById('cleaner-overview-month').value='';renderCleanerOverview()">全部</button>
+          </div>
           <div id="cleaner-overview"></div>
         </div>
         <!-- 清潔班表預覽 -->
@@ -1961,13 +1976,17 @@ function onCleanerNameChange(){
   onCleanerPeriodChange();
 }
 function onCleanerPeriodChange(preCheck=true){
-  const pid=parseInt(document.getElementById('cleaner-period').value);
+  const monthVal=document.getElementById('cleaner-month')?.value||'';
   const name=document.getElementById('cleaner-name').value;
-  const p=data.periods.find(x=>x.id===pid);
   const dw=document.getElementById('cleaner-dates-wrap');
-  if(!p){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>';return;}
-  const dates=getDates(p.start,p.end);
-  const schedSet=new Set((data.cleanerSchedules||[]).filter(s=>s.name===name&&s.periodId===pid).map(s=>s.date));
+  if(!monthVal){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇月份</div>';return;}
+  const [yr,mo]=monthVal.split('-').map(Number);
+  const daysInMonth=new Date(yr,mo,0).getDate();
+  const monthStart=`${yr}-${String(mo).padStart(2,'0')}-01`;
+  const monthEnd=`${yr}-${String(mo).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+  const dates=getDates(monthStart,monthEnd);
+  // 相容舊資料（有 periodId）及新資料（只看日期）
+  const schedSet=new Set((data.cleanerSchedules||[]).filter(s=>s.name===name&&s.date>=monthStart&&s.date<=monthEnd).map(s=>s.date));
   dw.innerHTML=dates.map(d=>{
     const isScheduled=schedSet.has(d);
     const badge=isScheduled?`<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-dim);margin-left:2px;">已排班</span>`:'';
@@ -1976,9 +1995,6 @@ function onCleanerPeriodChange(preCheck=true){
       <input type="checkbox" id="cleanerdate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"${preCheck&&isScheduled?' checked':''}> ${fd(d)}${badge}
     </label>`;
   }).join('');
-  // 同步班表預覽假期
-  const pp=document.getElementById('cleaner-preview-period');
-  if(pp){pp.value=pid||'';renderCleanerPreview(pid||0,'cleaner-preview-table');}
 }
 function onCleanerShiftChange(){
   const v=document.getElementById('cleaner-shift').value;
@@ -1987,27 +2003,29 @@ function onCleanerShiftChange(){
 }
 function addCleanerSchedule(){
   const name=document.getElementById('cleaner-name').value;
-  const pid=parseInt(document.getElementById('cleaner-period').value);
+  const monthVal=document.getElementById('cleaner-month')?.value||'';
   const store=document.getElementById('cleaner-store').value;
   const shift=document.getElementById('cleaner-shift').value;
   if(!name)return toast('請選擇清潔人員',true);
-  if(!pid)return toast('請選擇假期',true);
+  if(!monthVal)return toast('請選擇月份',true);
   let customStart='',customEnd='';
   if(shift==='自定義'){
     customStart=document.getElementById('cleaner-custom-start').value.replace(/[^0-9]/g,'').replace(/^(\d{2})(\d{1,2})$/,'$1:$2');
     customEnd=document.getElementById('cleaner-custom-end').value.replace(/[^0-9]/g,'').replace(/^(\d{2})(\d{1,2})$/,'$1:$2');
     if(!customStart||!customEnd)return toast('請輸入自定義班別時間',true);
   }
-  const p=data.periods.find(x=>x.id===pid);
-  if(!p)return;
-  const dates=getDates(p.start,p.end).filter(d=>document.getElementById('cleanerdate_'+d)?.checked);
+  const [yr,mo]=monthVal.split('-').map(Number);
+  const daysInMonth=new Date(yr,mo,0).getDate();
+  const monthStart=`${yr}-${String(mo).padStart(2,'0')}-01`;
+  const monthEnd=`${yr}-${String(mo).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+  const dates=getDates(monthStart,monthEnd).filter(d=>document.getElementById('cleanerdate_'+d)?.checked);
   if(!dates.length)return toast('請至少勾選一個日期',true);
   if(!data.cleanerSchedules) data.cleanerSchedules=[];
   let updated=0;
   dates.forEach(d=>{
-    const ex=data.cleanerSchedules.find(x=>x.name===name&&x.date===d&&x.periodId===pid);
-    if(ex){ex.store=store;ex.shift=shift;ex.customStart=customStart;ex.customEnd=customEnd;ex.periodId=pid;updated++;}
-    else{data.cleanerSchedules.push({id:`cl_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,name,date:d,store,shift,customStart,customEnd,periodId:pid});updated++;}
+    const ex=data.cleanerSchedules.find(x=>x.name===name&&x.date===d);
+    if(ex){ex.store=store;ex.shift=shift;ex.customStart=customStart;ex.customEnd=customEnd;updated++;}
+    else{data.cleanerSchedules.push({id:`cl_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,name,date:d,store,shift,customStart,customEnd});updated++;}
   });
   data.cleanerSchedules.sort((a,b)=>a.date.localeCompare(b.date));
   save();
@@ -2025,8 +2043,10 @@ function renderCleanerOverview(){
   if(!el)return;
   const openNames=new Set([...el.querySelectorAll('.app-shift-block.open')].map(b=>b.dataset.name));
   const scrollTop=el.scrollTop;
-  const schedules=data.cleanerSchedules||[];
-  if(!schedules.length){el.innerHTML='<div class="empty" style="padding:10px 0;font-size:.78rem;">尚無清潔排班</div>';return;}
+  const monthVal=document.getElementById('cleaner-overview-month')?.value||'';
+  let schedules=data.cleanerSchedules||[];
+  if(monthVal) schedules=schedules.filter(x=>x.date&&x.date.slice(0,7)===monthVal);
+  if(!schedules.length){el.innerHTML=`<div class="empty" style="padding:10px 0;font-size:.78rem;">${monthVal?'該月':''}尚無清潔排班</div>`;return;}
   const grouped={};
   schedules.forEach(x=>{
     if(!grouped[x.name]) grouped[x.name]={items:[]};
@@ -5526,7 +5546,7 @@ function initCounterPanel(){
   // 填入管理員選單：依櫃台班別順序優先，其餘依 admins 原順序補於後
   refreshAdminSelects();
   // 填入假期選單（含班別調整用）
-  ['cso-period','leave-preview-period','special-preview-period','cleaner-period','cleaner-preview-period'].forEach(selId=>{
+  ['leave-preview-period','special-preview-period','cleaner-preview-period'].forEach(selId=>{
     const ps=document.getElementById(selId);
     if(!ps) return;
     const pcur=ps.value;
@@ -5857,12 +5877,13 @@ function renderCounterStaff(){
 function renderCounterOverview(){
   const el=document.getElementById('counter-overview');
   if(!el)return;
-  // 保留目前展開的群組及捲動位置
   const openIds=new Set([...el.querySelectorAll('.app-shift-block.open')].map(b=>b.dataset.aid));
   const scrollTop=el.scrollTop;
-  const apps=data.counterApplications||[];
+  const monthVal=document.getElementById('counter-overview-month')?.value||'';
+  let apps=data.counterApplications||[];
+  if(monthVal) apps=apps.filter(a=>a.date&&a.date.slice(0,7)===monthVal);
   if(!apps.length){
-    el.innerHTML='<div class="empty"><div class="empty-icon">🗂️</div>尚無排假申請</div>';
+    el.innerHTML=`<div class="empty"><div class="empty-icon">🗂️</div>${monthVal?'該月':''}尚無排假申請</div>`;
     return;
   }
   // 依管理員分組，依 counterStaff 順序排列
@@ -5905,14 +5926,18 @@ function renderCounterOverview(){
 
 // ── 班別調整 ──
 function onCsoPeriodChange(){
-  const pid=parseInt(document.getElementById('cso-period').value);
+  const monthVal=document.getElementById('cso-month')?.value||''; // YYYY-MM
   const aid=document.getElementById('cso-admin').value;
-  const p=data.periods.find(x=>x.id===pid);
   const dw=document.getElementById('cso-dates-wrap');
-  if(!p){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇假期</div>';return;}
-  const dates=getDates(p.start,p.end);
+  if(!monthVal){dw.innerHTML='<div style="color:var(--text-dim);font-size:.79rem;">請先選擇月份</div>';return;}
+  // 產生該月所有日期
+  const [yr,mo]=monthVal.split('-').map(Number);
+  const daysInMonth=new Date(yr,mo,0).getDate();
+  const monthStart=`${yr}-${String(mo).padStart(2,'0')}-01`;
+  const monthEnd=`${yr}-${String(mo).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+  const dates=getDates(monthStart,monthEnd);
   // 建立休假日期集合（依目前選擇的管理員）
-  const leaveSet=new Set((data.counterApplications||[]).filter(a=>a.adminId===aid&&a.date>=p.start&&a.date<=p.end).map(a=>a.date));
+  const leaveSet=new Set((data.counterApplications||[]).filter(a=>a.adminId===aid&&a.date>=monthStart&&a.date<=monthEnd).map(a=>a.date));
   dw.innerHTML=dates.map(d=>{
     const isOff=leaveSet.has(d);
     const badge=isOff?`<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text-dim);margin-left:2px;">休→上班</span>`:'';
@@ -5921,9 +5946,6 @@ function onCsoPeriodChange(){
     <input type="checkbox" id="csodate_${d}" value="${d}" style="width:auto;padding:0;accent-color:var(--accent);"> ${fd(d)}${badge}
   </label>`;
   }).join('');
-  // 同步預覽假期選單並刷新預覽
-  const sp=document.getElementById('special-preview-period');
-  if(sp){sp.value=pid||'';renderCounterPreview(pid||0,'special-preview-table');}
 }
 function onCsoShiftChange(){
   const v=document.getElementById('cso-shift').value;
@@ -5931,14 +5953,16 @@ function onCsoShiftChange(){
 }
 function addCounterShiftOverride(){
   const aid=document.getElementById('cso-admin').value;
-  const pid=parseInt(document.getElementById('cso-period').value);
+  const monthVal=document.getElementById('cso-month')?.value||'';
   const shift=document.getElementById('cso-shift').value;
   const csoStore=document.getElementById('cso-store')?.value||'';
   if(!aid)return toast('請選擇管理員',true);
-  if(!pid)return toast('請選擇假期',true);
-  const p=data.periods.find(x=>x.id===pid);
-  if(!p)return;
-  const dates=getDates(p.start,p.end).filter(d=>document.getElementById('csodate_'+d)?.checked);
+  if(!monthVal)return toast('請選擇月份',true);
+  const [yr,mo]=monthVal.split('-').map(Number);
+  const daysInMonth=new Date(yr,mo,0).getDate();
+  const monthStart=`${yr}-${String(mo).padStart(2,'0')}-01`;
+  const monthEnd=`${yr}-${String(mo).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+  const dates=getDates(monthStart,monthEnd).filter(d=>document.getElementById('csodate_'+d)?.checked);
   if(!dates.length)return toast('請至少勾選一個日期',true);
   let customStart='',customEnd='';
   if(shift==='custom'){
@@ -5977,11 +6001,12 @@ function refreshCounterPreviews(){
 function renderCsoOverview(){
   const el=document.getElementById('cso-overview');
   if(!el)return;
-  // 保留目前展開的群組及捲動位置
   const openIds=new Set([...el.querySelectorAll('.app-shift-block.open')].map(b=>b.dataset.aid));
   const scrollTop=el.scrollTop;
-  const overrides=data.counterShiftOverrides||[];
-  if(!overrides.length){el.innerHTML='<div class="empty" style="padding:10px 0;font-size:.78rem;">尚無班別調整</div>';return;}
+  const monthVal=document.getElementById('cso-overview-month')?.value||'';
+  let overrides=data.counterShiftOverrides||[];
+  if(monthVal) overrides=overrides.filter(x=>x.date&&x.date.slice(0,7)===monthVal);
+  if(!overrides.length){el.innerHTML=`<div class="empty" style="padding:10px 0;font-size:.78rem;">${monthVal?'該月':''}尚無班別調整</div>`;return;}
   const grouped={};
   overrides.forEach(x=>{
     const admin=(data.admins||[]).find(a=>a.id===x.adminId);
