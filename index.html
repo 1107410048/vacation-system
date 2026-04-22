@@ -4748,7 +4748,7 @@ ${sheetDefs.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" Cont
 <cellStyleXfs count="1">
  <xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 </cellStyleXfs>
-<cellXfs count="28">
+<cellXfs count="31">
  <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
  <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
  <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
@@ -4777,6 +4777,9 @@ ${sheetDefs.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" Cont
  <xf numFmtId="0" fontId="2" fillId="0" borderId="3" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
  <xf numFmtId="0" fontId="0" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" shrinkToFit="1"/></xf>
  <xf numFmtId="0" fontId="0" fillId="0" borderId="3" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" shrinkToFit="1"/></xf>
+ <xf numFmtId="0" fontId="1" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" shrinkToFit="1"/></xf>
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" shrinkToFit="1"/></xf>
+ <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" shrinkToFit="1"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;;;
@@ -4980,7 +4983,7 @@ function exportScheduleExcel(){
     rows.push(new Array(totalEmpCols+2+statShifts.length).fill(''));
     const fN=['',''];shiftEmps.forEach(({emps})=>emps.forEach(emp=>fN.push(emp.name)));statShifts.forEach(()=>fN.push(''));rows.push(fN);
     const fT=['',''];shiftEmps.forEach(({emps})=>emps.forEach(emp=>fT.push(titleOf(emp))));statShifts.forEach(()=>fT.push(''));rows.push(fT);
-    const colWidths=[5.875,4.875];
+    const colWidths=[3.5,2.5];
     shiftEmps.forEach(({emps})=>emps.forEach(()=>colWidths.push(4)));
     statShifts.forEach(()=>colWidths.push(4));
     const merges=[];
@@ -5118,7 +5121,7 @@ function exportScheduleExcel(){
     // 頁尾：名稱列 + 班別列
     const fN=['',''];counterAdmins.forEach(ca=>fN.push(ca.name));for(let i=0;i<SEP;i++)fN.push('');allCleaners.forEach(s=>fN.push(s.nickname||s.name));rows.push(fN);
     const fS=['',''];counterAdmins.forEach(ca=>fS.push(_shiftLabel(ca)));for(let i=0;i<SEP;i++)fS.push('');allCleaners.forEach(s=>{const si=s.shift==='自定義'&&s.shiftName?_clSp(s.store)+s.shiftName:_clSp(s.store)+_clSh(s.shift);fS.push(si);});rows.push(fS);
-    const colWidths=[5.875,4.875];
+    const colWidths=[3.5,2.5];
     counterAdmins.forEach(()=>colWidths.push(5));
     for(let i=0;i<SEP;i++)colWidths.push(3);
     allCleaners.forEach(()=>colWidths.push(5));
@@ -5137,7 +5140,13 @@ function exportScheduleExcel(){
       if(ri===0||ri===ctrNameHdrIdx||ri===ctrFnIdx||ri===ctrFtIdx) return 5;
       // 班別標題列（ri=1）：全粗框 + shrinkToFit（文字超出自動縮小）
       if(ri===1) return 27; // MMMM全粗框 + shrinkToFit
-      if(ri>=ctrDataStart&&ri<ctrEmptyIdx){if(isAB)return isHol?4:3;if(isF)return isHol?8:7;if(isM)return isHol?2:1;if(isL)return isHol?16:15;}
+      // データ行：shrinkToFit で長い文字列を自動縮小
+      if(ri>=ctrDataStart&&ri<ctrEmptyIdx){
+        if(isAB)return isHol?28:26; // borderId=2 + shrink
+        if(isF)return isHol?28:26;
+        if(isM)return isHol?30:29; // borderId=1 + shrink
+        if(isL)return isHol?30:29;
+      }
       if(ri===ctrEmptyIdx){if(isAB)return 3;if(isF)return 10;if(isM)return 13;if(isL)return 18;}
       if(isAB)return 3;if(isF)return 7;if(isM)return 1;if(isL)return 15;return 1;
     }
@@ -5149,48 +5158,46 @@ function exportScheduleExcel(){
   // A4直向窄邊界可列印高度：11.69 - 0.25*2 = 11.19 英吋（含頁首頁尾0.3英吋各）
   // Excel欄寬單位 → 英吋：1字元寬 ≈ 0.1089 英吋（新細明體12pt約9.57px，96dpi）
   // 列高單位 pt → 英吋：1pt = 1/72 英吋，預設列高15pt
-  function calcBestScale(colWidths, rowCount, rowHeightMap){
-    // Excel欄寬換算為英吋：
-    // 新細明體12pt的MaxDigitWidth約8px(96dpi)，欄寬公式：(chars*8+5)/96 inches
-    const colToInch=w=>(w*8+5)/96;
+  // pageH: emp工作表(有30pt時間列)用9.59，counter工作表(全15pt)用10.80
+  function calcBestScale(colWidths, rowCount, rowHeightMap, pageH){
+    // Excel欄寬換算：(w*MDW+5)/96, MDW=6.3 (實測校正值)
+    const colToInch=w=>(w*6.3+5)/96;
     const PT_TO_INCH=1/72;
     const DEF_ROW_H=15; // pt
-    // A4窄邊界（左右各0.25英吋）可列印寬：8.27-0.5=7.77英吋
-    // A4窄邊界（上下各0.25，頁首頁尾各0.3英吋）可列印高：11.69-0.5-0.6=10.59英吋
     const PAGE_W=7.77;
-    const PAGE_H=9.59; // A4 11.69 - top0.75 - bottom0.75 - header0.3 - footer0.3
+    const PAGE_H=pageH||9.59;
     const totalW=colWidths.reduce((s,w)=>s+colToInch(w),0);
     let totalH=0;
     for(let ri=0;ri<rowCount;ri++){
       const ht=(rowHeightMap&&rowHeightMap[ri])?rowHeightMap[ri]:DEF_ROW_H;
       totalH+=ht*PT_TO_INCH;
     }
-    // 先從100%往上找：每次+5%直到超出A4
+    // 從100%往上找到不超出A4的最大縮放比（+5%步距）
     let best=100;
     for(let s=105;s<=300;s+=5){
       const sc=s/100;
       if(totalW*sc>PAGE_W||totalH*sc>PAGE_H) break;
       best=s;
     }
-    // 若100%本身就超出A4（寬或高），則往下縮直到剛好不超出
-    if(totalW*(best/100)>PAGE_W||totalH*(best/100)>PAGE_H){
-      best=100;
+    // 若100%就超出A4則往下縮（-5%步距）
+    if(totalW>PAGE_W||totalH>PAGE_H){
+      best=10;
       for(let s=95;s>=10;s-=5){
-        const sc=s/100;
-        if(totalW*sc<=PAGE_W&&totalH*sc<=PAGE_H){best=s;break;}
+        if(totalW*(s/100)<=PAGE_W&&totalH*(s/100)<=PAGE_H){best=s;break;}
       }
     }
+    console.log('[calcBestScale] cols='+colWidths.length+' rows='+rowCount+' totalW='+totalW.toFixed(3)+' totalH='+totalH.toFixed(3)+' PAGE_W='+PAGE_W+' PAGE_H='+PAGE_H+' -> '+best+'%');
     return best;
   }
   const _empM=buildEmpSheet('male',`${rocMStr}${storeLabel} 足底技師休假表`);
   const _empF=buildEmpSheet('female',`${rocMStr}${storeLabel} 身體技師休假表`);
   const sheetDefs=[
-    {name:'足師',..._empM,printScale:calcBestScale(_empM.colWidths,_empM.rows.length,_empM.rowHeightMap)},
-    {name:'體師',..._empF,printScale:calcBestScale(_empF.colWidths,_empF.rows.length,_empF.rowHeightMap)},
+    {name:'足師',..._empM,printScale:calcBestScale(_empM.colWidths,_empM.rows.length,_empM.rowHeightMap,9.59)},
+    {name:'體師',..._empF,printScale:calcBestScale(_empF.colWidths,_empF.rows.length,_empF.rowHeightMap,9.59)},
   ];
   const counterSheet=buildCounterSheet();
   if(counterSheet){
-    const _ctrScale=calcBestScale(counterSheet.colWidths,counterSheet.rows.length,counterSheet.rowHeightMap);
+    const _ctrScale=calcBestScale(counterSheet.colWidths,counterSheet.rows.length,counterSheet.rowHeightMap,10.80);
     sheetDefs.push({name:'櫃檶',...counterSheet,printScale:_ctrScale});
   }
 
