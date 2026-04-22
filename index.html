@@ -5165,12 +5165,20 @@ function exportScheduleExcel(){
       const ht=(rowHeightMap&&rowHeightMap[ri])?rowHeightMap[ri]:DEF_ROW_H;
       totalH+=ht*PT_TO_INCH;
     }
-    // 從100%往上，每次+5%，找到不超出A4的最大縮放比
+    // 先從100%往上找：每次+5%直到超出A4
     let best=100;
     for(let s=105;s<=300;s+=5){
       const sc=s/100;
       if(totalW*sc>PAGE_W||totalH*sc>PAGE_H) break;
       best=s;
+    }
+    // 若100%本身就超出A4（寬或高），則往下縮直到剛好不超出
+    if(totalW*(best/100)>PAGE_W||totalH*(best/100)>PAGE_H){
+      best=100;
+      for(let s=95;s>=10;s-=5){
+        const sc=s/100;
+        if(totalW*sc<=PAGE_W&&totalH*sc<=PAGE_H){best=s;break;}
+      }
     }
     return best;
   }
