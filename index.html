@@ -658,9 +658,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
               <div class="field"><label>請假原因（選填）</label>
                 <input type="text" id="proxy-el-reason" placeholder="例：家庭事由">
               </div>
+              <div class="field">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.82rem;">
+                  <input type="checkbox" id="proxy-el-annual" style="width:auto;padding:0;accent-color:var(--accent);" onchange="if(this.checked)document.getElementById('proxy-el-birthday').checked=false;">
+                  特休假（未達每日未出勤上限即可申請，假表顯示「特」）
+                </label>
+              </div>
               <div class="field" style="margin-bottom:0;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.82rem;">
-                  <input type="checkbox" id="proxy-el-birthday" style="width:auto;padding:0;accent-color:var(--accent);">
+                  <input type="checkbox" id="proxy-el-birthday" style="width:auto;padding:0;accent-color:var(--accent);" onchange="if(this.checked)document.getElementById('proxy-el-annual').checked=false;">
                   生日假（不受假別衝突限制，假表顯示「生」）
                 </label>
               </div>
@@ -3059,15 +3065,17 @@ function addProxyExtraLeave(){
   const eid=parseInt(document.getElementById('proxy-el-emp').value);
   const reason=document.getElementById('proxy-el-reason').value.trim();
   const isBirthday=document.getElementById('proxy-el-birthday')?.checked||false;
+  const isAnnual=document.getElementById('proxy-el-annual')?.checked||false;
   if(!eid)return toast('請選擇員工',true);
   if(!_proxyElSelectedDates.size)return toast('請點選請假日期',true);
   const emp=data.employees.find(e=>e.id===eid);
   if(!emp)return;
   if(!data.extraLeaves)data.extraLeaves=[];
   const _proxyPeriodId=parseInt(document.getElementById('proxy-el-period').value)||null;
+  const p=_proxyPeriodId?data.periods.find(x=>x.id===_proxyPeriodId):null;
   const dates=[..._proxyElSelectedDates].sort();
-  // 假別衝突檢查（生日假跳過）
-  if(!isBirthday){
+  // 假別衝突檢查（生日假和特休假跳過衝突檢查）
+  if(!isBirthday&&!isAnnual){
     const newDates=dates.filter(d=>!(data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===d&&l.status!=='rejected'&&!l.isBirthday&&(l.periodId?l.periodId===_proxyPeriodId:true)));
     const conflicts=getLeaveConflicts(eid,newDates);
     if(conflicts.length){
@@ -3075,15 +3083,35 @@ function addProxyExtraLeave(){
       return toast(`以下日期已有其他假別，請先取消後再申請請假：${items}`,true);
     }
   }
+  // 特休假：檢查當天未出勤人數是否已達上限
+  if(isAnnual&&p){
+    const gender=emp.gender||'male';
+    const overDates=dates.filter(d=>{
+      const lim=getLim(p,emp.dept,d,gender);
+      if(lim<=0)return false; // 不開放的日期不允許
+      const statusMap=buildStatusMap(p);
+      // 計算當天已休假人數（抽籤錄取/直接錄取/生日假/其他特休）
+      const shEmps=data.employees.filter(e=>e.dept===emp.dept&&(e.gender||'male')===gender);
+      const alreadyOff=shEmps.filter(e=>{
+        const st=(statusMap[e.id]||{})[d];
+        return ['lottery','direct','birthday','annual'].includes(st);
+      }).length;
+      return alreadyOff>=lim;
+    });
+    if(overDates.length){
+      return toast(`以下日期已達未出勤上限，無法申請特休：${overDates.map(fd).join('、')}`,true);
+    }
+  }
   let added=0,skipped=0;
   dates.forEach(date=>{
-    if((data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected'&&!l.isBirthday)){skipped++;return;}
+    if((data.extraLeaves||[]).find(l=>l.empId===eid&&l.date===date&&l.status!=='rejected'&&!l.isBirthday&&!l.isAnnual)){skipped++;return;}
     const _proxyPid=_proxyPeriodId;
     data.extraLeaves.push({
       id:`${Date.now()}_${Math.floor(Math.random()*1000000)}`,
       empId:eid,empName:emp.name,shift:emp.dept,
-      date,reason:reason||(isBirthday?'生日假':'管理員代為申請'),
+      date,reason:reason||(isBirthday?'生日假':isAnnual?'特休假':'管理員代為申請'),
       isBirthday:isBirthday||false,
+      isAnnual:isAnnual||false,
       periodId:_proxyPid,
       status:'approved',
       appliedAt:new Date().toLocaleString('zh-TW'),
@@ -3096,6 +3124,7 @@ function addProxyExtraLeave(){
   _proxyElSelectedDates=new Set();
   document.getElementById('proxy-el-reason').value='';
   const bdCb=document.getElementById('proxy-el-birthday');if(bdCb)bdCb.checked=false;
+  const annCb=document.getElementById('proxy-el-annual');if(annCb)annCb.checked=false;
   onProxyElEmpChange();
   refreshElSelects();renderExtraLeave();renderAppCancelDates();
   if(document.getElementById('panel-schedule').classList.contains('active'))renderSchedule();
@@ -4257,7 +4286,7 @@ function renderExtraLeave(){
   if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">🏖️</div>尚無請假申請</div>';return;}
   el.innerHTML=`<table><thead><tr><th>員工</th><th>班別</th><th>日期</th><th>原因</th><th>狀態</th><th>操作</th></tr></thead><tbody>`+
     list.map(l=>{
-      const birthdayTag=l.isBirthday?'<span class="badge b-yellow" style="margin-left:4px;">生日假</span>':'';
+      const birthdayTag=l.isBirthday?'<span class="badge b-yellow" style="margin-left:4px;">生日假</span>':l.isAnnual?'<span class="badge b-blue" style="margin-left:4px;">特休假</span>':'';
       const statusBadge=(l.status==='pending'?'<span class="badge b-orange">待審核</span>':l.status==='approved'?'<span class="badge b-green">已核准</span>':'<span class="badge b-red">已拒絕</span>')+birthdayTag;
       const actions=l.status==='pending'
         ?`<button class="btn" style="padding:3px 9px;font-size:.6rem;background:var(--green);color:#111;" onclick="reviewLeave('${l.id}','approved')">核准</button>
@@ -4841,7 +4870,7 @@ function exportScheduleExcel(){
   const statusMap=buildStatusMap(period);
   const WD=['日','一','二','三','四','五','六'];
   const ON_LEAVE=['lottery','direct']; // 只計算排假人數
-  const stSym=st=>(st==='lottery'||st==='direct')?'R':st==='extra'?'請':st==='birthday'?'生':st==='long-start'?'長':st==='long-end'?'假':st==='long-mid'?'|':'';
+  const stSym=st=>(st==='lottery'||st==='direct')?'R':st==='extra'?'請':st==='birthday'?'生':st==='annual'?'特':st==='long-start'?'長':st==='long-end'?'假':st==='long-mid'?'|':'';
   const titleOf=emp=>emp.empType||'直';
   const rocY=parseInt(period.start.slice(0,4))-1911;
   const rocM=parseInt(period.start.slice(5,7));
@@ -4939,7 +4968,7 @@ function exportScheduleExcel(){
           return (data.longLeaves||[]).some(l=>l.empId===emp.id&&l.countAsSlot&&l.startDate<=d&&d<=l.endDate);
         }).length;
         // ★ 生日假也計入當日休假人數
-        const bdSlotCount=shEmps.filter(emp=>(statusMap[emp.id]||{})[d]==='birthday').length;
+        const bdSlotCount=shEmps.filter(emp=>['birthday','annual'].includes((statusMap[emp.id]||{})[d])).length;
         row.push(schedCount+longSlotCount+bdSlotCount);
         loserRow.push(false);
       });
@@ -6362,7 +6391,7 @@ function buildStatusMap(period){
   });
   // 已核准的額外請假（依假期篩選：有periodId則比對，無則依日期範圍相容舊資料）
   const _elInPeriod=l=>l.periodId?l.periodId===pid:(l.date>=period.start&&l.date<=period.end);
-  (data.extraLeaves||[]).filter(l=>l.status==='approved'&&_elInPeriod(l)).forEach(l=>{if(!map[l.empId])map[l.empId]={};map[l.empId][l.date]=l.isBirthday?'birthday':'extra';});
+  (data.extraLeaves||[]).filter(l=>l.status==='approved'&&_elInPeriod(l)).forEach(l=>{if(!map[l.empId])map[l.empId]={};map[l.empId][l.date]=l.isBirthday?'birthday':l.isAnnual?'annual':'extra';});
   // 待審核的額外請假 → 顯示為 pending（不覆蓋已有狀態）
   (data.extraLeaves||[]).filter(l=>l.status==='pending'&&_elInPeriod(l)).forEach(l=>{if(!map[l.empId])map[l.empId]={};if(!map[l.empId][l.date])map[l.empId][l.date]='el-pending';});
   return map;
@@ -6418,9 +6447,9 @@ function renderSchedule(){
   });
   const ON_LEAVE=['lottery','direct','extra','long-start','long-end','long-mid'];
   const _showLoser=document.getElementById('sch-show-loser')?.checked!==false;
-  const STATUS_ICON={lottery:'R',direct:'R',extra:'請',birthday:'生','long-start':'長','long-end':'假','long-mid':'|',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
-  const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',birthday:'cell-extra','long-start':'cell-extra','long-end':'cell-extra','long-mid':'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending','needs-lottery':'cell-needs-lottery'};
-  const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',birthday:'生日假','long-start':'長假開始','long-end':'長假結束','long-mid':'長假中',loser:'未中籤',pending:'申請中','el-pending':'請假待審','needs-lottery':'尚未抽籤'};
+  const STATUS_ICON={lottery:'R',direct:'R',extra:'請',birthday:'生',annual:'特','long-start':'長','long-end':'假','long-mid':'|',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
+  const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',birthday:'cell-extra',annual:'cell-extra','long-start':'cell-extra','long-end':'cell-extra','long-mid':'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending','needs-lottery':'cell-needs-lottery'};
+  const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',birthday:'生日假',annual:'特休假','long-start':'長假開始','long-end':'長假結束','long-mid':'長假中',loser:'未中籤',pending:'申請中','el-pending':'請假待審','needs-lottery':'尚未抽籤'};
   const _effSt=st=>(st==='loser'&&!_showLoser)?'':st;
   if(_schView==='calendar'){
     // 日期為列、員工為欄
@@ -7332,9 +7361,9 @@ function renderSelfSchedule(){
     const shifts=data.departments;
     const statusMap=pub.statusMap;
     const ON_LEAVE=['lottery','direct','extra','long-start','long-end','long-mid'];
-    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',birthday:'生日假','long-start':'長假開始','long-end':'長假結束','long-mid':'長假中',loser:'未中籤',pending:'申請中','el-pending':'請假待審','needs-lottery':'尚未抽籤'};
-    const STATUS_ICON={lottery:'R',direct:'R',extra:'請',birthday:'生','long-start':'長','long-end':'假','long-mid':'|',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
-    const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',birthday:'cell-extra','long-start':'cell-extra','long-end':'cell-extra','long-mid':'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending','needs-lottery':'cell-needs-lottery'};
+    const STATUS_LABEL={lottery:'抽籤錄取',direct:'休假',extra:'額外假',birthday:'生日假',annual:'特休假','long-start':'長假開始','long-end':'長假結束','long-mid':'長假中',loser:'未中籤',pending:'申請中','el-pending':'請假待審','needs-lottery':'尚未抽籤'};
+    const STATUS_ICON={lottery:'R',direct:'R',extra:'請',birthday:'生',annual:'特','long-start':'長','long-end':'假','long-mid':'|',loser:'✕',pending:'◐','el-pending':'?','needs-lottery':'!'};
+    const STATUS_CLASS={lottery:'cell-lottery',direct:'cell-direct',extra:'cell-extra',birthday:'cell-extra',annual:'cell-extra','long-start':'cell-extra','long-end':'cell-extra','long-mid':'cell-extra',loser:'cell-loser',pending:'cell-pending','el-pending':'cell-el-pending','needs-lottery':'cell-needs-lottery'};
     const _pubEffSt=st=>(st==='loser'&&pub.hideLoser)?'':st;
     const WD=['日','一','二','三','四','五','六'];
 
