@@ -5195,8 +5195,17 @@ function exportScheduleExcel(){
   function adjustRowHeightToFill(sd, pageH, scale){
     const colToInch=w=>(w*6.3+5)/96;
     const totalW=sd.colWidths.reduce((s,w)=>s+colToInch(w),0);
-    const isWidthLimited=totalW*(scale/100)>=(7.77-0.05); // 寬度已接近上限
-    if(!isWidthLimited) return; // 高度限制，不需調整
+    const PAGE_W=7.77;
+    // 寬度限制判斷：下一個縮放級距(+5%)時寬度會超出，但高度不會
+    const nextSc=(scale+5)/100;
+    const DEF_ROW_H=15;
+    let origH=0;
+    for(let ri=0;ri<sd.rows.length;ri++){
+      const ht=(sd.rowHeightMap&&sd.rowHeightMap[ri])?sd.rowHeightMap[ri]:DEF_ROW_H;
+      origH+=ht/72;
+    }
+    const isWidthLimited=totalW*nextSc>PAGE_W&&origH*nextSc<=pageH;
+    if(!isWidthLimited) return; // 高度限制或已最大，不需調整
     // 計算目標總高度（以當前縮放填滿 PAGE_H）
     const targetTotalH=pageH/(scale/100);
     // 固定列：header rows (5列，其中ri=2為30pt) + empty+footer (3列)
