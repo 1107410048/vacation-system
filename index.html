@@ -5191,9 +5191,31 @@ function exportScheduleExcel(){
   }
   const _empM=buildEmpSheet('male',`${rocMStr}${storeLabel} 足底技師休假表`);
   const _empF=buildEmpSheet('female',`${rocMStr}${storeLabel} 身體技師休假表`);
+  // ── 若工作表為寬度限制（下方有剩餘空間），動態調整資料列高填滿頁面 ──
+  function adjustRowHeightToFill(sd, pageH, scale){
+    const colToInch=w=>(w*6.3+5)/96;
+    const totalW=sd.colWidths.reduce((s,w)=>s+colToInch(w),0);
+    const isWidthLimited=totalW*(scale/100)>=(7.77-0.05); // 寬度已接近上限
+    if(!isWidthLimited) return; // 高度限制，不需調整
+    // 計算目標總高度（以當前縮放填滿 PAGE_H）
+    const targetTotalH=pageH/(scale/100);
+    // 固定列：header rows (5列，其中ri=2為30pt) + empty+footer (3列)
+    const fixedH=(7*15+30)/72; // 8列中7列15pt + 1列30pt
+    const dateRowCount=sd.rows.length-8; // 扣除8個非資料列
+    if(dateRowCount<=0) return;
+    const newRowHPt=Math.max(15,Math.floor((targetTotalH-fixedH)/dateRowCount*72));
+    // 建立新的 rowHeightMap：所有資料列設新高度（ri=5 開始）
+    const newRHM={...(sd.rowHeightMap||{}),2:30};
+    for(let ri=5;ri<5+dateRowCount;ri++) newRHM[ri]=newRowHPt;
+    sd.rowHeightMap=newRHM;
+  }
+  const _scaleM=calcBestScale(_empM.colWidths,_empM.rows.length,_empM.rowHeightMap,9.59);
+  const _scaleF=calcBestScale(_empF.colWidths,_empF.rows.length,_empF.rowHeightMap,9.59);
+  adjustRowHeightToFill(_empM,9.59,_scaleM);
+  adjustRowHeightToFill(_empF,9.59,_scaleF);
   const sheetDefs=[
-    {name:'足師',..._empM,printScale:calcBestScale(_empM.colWidths,_empM.rows.length,_empM.rowHeightMap,9.59)},
-    {name:'體師',..._empF,printScale:calcBestScale(_empF.colWidths,_empF.rows.length,_empF.rowHeightMap,9.59)},
+    {name:'足師',..._empM,printScale:_scaleM},
+    {name:'體師',..._empF,printScale:_scaleF},
   ];
   const counterSheet=buildCounterSheet();
   if(counterSheet){
